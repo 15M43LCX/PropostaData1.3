@@ -1,131 +1,91 @@
-
 import { Customer, Equipment, MasterData, Proposal, User, UserRole } from '../types';
 import { INITIAL_MASTER_DATA, MOCK_CUSTOMERS, MOCK_EQUIPMENTS, MOCK_USERS } from '../constants';
+import { supabase } from './supabase';
 
 const KEYS = {
-  USERS: 'pp_users',
-  CUSTOMERS: 'pp_customers',
-  EQUIPMENTS: 'pp_equipments',
-  PROPOSALS: 'pp_proposals',
-  MASTER_DATA: 'pp_master_data',
   CURRENT_USER: 'pp_current_user'
 };
 
-const getFromStorage = <T>(key: string, defaultValue: T): T => {
-  const data = localStorage.getItem(key);
-  if (!data) {
-    localStorage.setItem(key, JSON.stringify(defaultValue));
-    return defaultValue;
+// Auxiliar para lidar com erros e retorno de dados
+const handleResponse = (data: any, error: any) => {
+  if (error) {
+    console.error('Erro no Supabase:', error.message);
+    return null;
   }
-  try {
-    const parsed = JSON.parse(data);
-    
-    // Se for um array de objetos com ID, vamos mesclar novos itens do mock
-    if (Array.isArray(parsed) && Array.isArray(defaultValue)) {
-      const merged = [...parsed];
-      let changed = false;
-      
-      defaultValue.forEach(defItem => {
-        if (defItem && typeof defItem === 'object' && 'id' in defItem) {
-          if (!merged.find(m => m.id === (defItem as any).id)) {
-            merged.push(defItem);
-            changed = true;
-          }
-        }
-      });
-      
-      if (changed) {
-        localStorage.setItem(key, JSON.stringify(merged));
-        return merged as unknown as T;
-      }
-    }
-    
-    return parsed;
-  } catch {
-    return defaultValue;
-  }
+  return data;
 };
 
 export const storage = {
-  getUsers: (): User[] => {
-    const users = getFromStorage(KEYS.USERS, MOCK_USERS);
-    // Correção de emergência para o e-mail do administrador
-    const admin = users.find(u => u.id === 'u1');
-    if (admin && admin.email !== 'admin@empresa.com') {
-      admin.email = 'admin@empresa.com';
-      localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-    }
-    return users;
+  // --- USUÁRIOS ---
+  getUsers: async (): Promise<User[]> => {
+    const { data, error } = await supabase.from('usuarios').select('*');
+    return handleResponse(data, error) || MOCK_USERS;
   },
-  saveUser: (user: User) => {
-    const list = storage.getUsers();
-    const index = list.findIndex(u => u.id === user.id);
-    if (index >= 0) list[index] = user;
-    else list.push(user);
-    localStorage.setItem(KEYS.USERS, JSON.stringify(list));
+  saveUser: async (user: User) => {
+    const { error } = await supabase.from('usuarios').upsert(user);
+    if (error) console.error('Erro ao salvar usuário:', error);
   },
-  deleteUser: (id: string) => {
-    const list = storage.getUsers().filter(u => u.id !== id);
-    localStorage.setItem(KEYS.USERS, JSON.stringify(list));
+  deleteUser: async (id: string) => {
+    await supabase.from('usuarios').delete().eq('id', id);
   },
 
-  getCustomers: (): Customer[] => getFromStorage(KEYS.CUSTOMERS, MOCK_CUSTOMERS),
-  saveCustomer: (customer: Customer) => {
-    const list = storage.getCustomers();
-    const index = list.findIndex(c => c.id === customer.id);
-    if (index >= 0) list[index] = customer;
-    else list.push(customer);
-    localStorage.setItem(KEYS.CUSTOMERS, JSON.stringify(list));
+  // --- CLIENTES ---
+  getCustomers: async (): Promise<Customer[]> => {
+    const { data, error } = await supabase.from('clientes').select('*');
+    return handleResponse(data, error) || MOCK_CUSTOMERS;
   },
-  deleteCustomer: (id: string) => {
-    const list = storage.getCustomers().filter(c => c.id !== id);
-    localStorage.setItem(KEYS.CUSTOMERS, JSON.stringify(list));
+  saveCustomer: async (customer: Customer) => {
+    const { error } = await supabase.from('clientes').upsert(customer);
+    if (error) console.error('Erro ao salvar cliente:', error);
   },
-  getVisibleCustomers: (user: User): Customer[] => {
-    const all = storage.getCustomers();
+  deleteCustomer: async (id: string) => {
+    await supabase.from('clientes').delete().eq('id', id);
+  },
+  getVisibleCustomers: async (user: User): Promise<Customer[]> => {
+    const all = await storage.getCustomers();
     if (user.role === UserRole.ADMIN) return all;
     return all.filter(c => c.sellerId === user.id);
   },
 
-  getEquipments: (): Equipment[] => getFromStorage(KEYS.EQUIPMENTS, MOCK_EQUIPMENTS),
-  saveEquipment: (eq: Equipment) => {
-    const list = storage.getEquipments();
-    const index = list.findIndex(e => e.id === eq.id);
-    if (index >= 0) list[index] = eq;
-    else list.push(eq);
-    localStorage.setItem(KEYS.EQUIPMENTS, JSON.stringify(list));
+  // --- EQUIPAMENTOS ---
+  getEquipments: async (): Promise<Equipment[]> => {
+    const { data, error } = await supabase.from('equipamentos').select('*');
+    return handleResponse(data, error) || MOCK_EQUIPMENTS;
   },
-  deleteEquipment: (id: string) => {
-    const list = storage.getEquipments().filter(e => e.id !== id);
-    localStorage.setItem(KEYS.EQUIPMENTS, JSON.stringify(list));
+  saveEquipment: async (eq: Equipment) => {
+    const { error } = await supabase.from('equipamentos').upsert(eq);
+    if (error) console.error('Erro ao salvar equipamento:', error);
+  },
+  deleteEquipment: async (id: string) => {
+    await supabase.from('equipamentos').delete().eq('id', id);
   },
 
-  getProposals: (): Proposal[] => getFromStorage(KEYS.PROPOSALS, []),
-  saveProposal: (prop: Proposal) => {
-    const list = storage.getProposals();
-    const index = list.findIndex(p => p.id === prop.id);
-    if (index >= 0) list[index] = prop;
-    else list.push(prop);
-    localStorage.setItem(KEYS.PROPOSALS, JSON.stringify(list));
+  // --- PROPOSTAS ---
+  getProposals: async (): Promise<Proposal[]> => {
+    const { data, error } = await supabase.from('propostas').select('*').order('createdAt', { ascending: false });
+    return handleResponse(data, error) || [];
   },
-  deleteProposal: (id: string) => {
-    const list = storage.getProposals().filter(p => p.id !== id);
-    localStorage.setItem(KEYS.PROPOSALS, JSON.stringify(list));
+  saveProposal: async (prop: Proposal) => {
+    const { error } = await supabase.from('propostas').upsert(prop);
+    if (error) console.error('Erro ao salvar proposta:', error);
   },
-  getVisibleProposals: (user: User): Proposal[] => {
-    const all = storage.getProposals();
+  deleteProposal: async (id: string) => {
+    await supabase.from('propostas').delete().eq('id', id);
+  },
+  getVisibleProposals: async (user: User): Promise<Proposal[]> => {
+    const all = await storage.getProposals();
     if (user.role === UserRole.ADMIN) return all;
     return all.filter(p => p.sellerId === user.id);
   },
 
+  // --- CONFIGURAÇÕES E LOGIN (Mantidos locais por segurança/sessão) ---
   getMasterData: (): MasterData => {
-    const data = getFromStorage(KEYS.MASTER_DATA, INITIAL_MASTER_DATA);
-    return { ...INITIAL_MASTER_DATA, ...data };
+    const data = localStorage.getItem('pp_master_data');
+    return data ? JSON.parse(data) : INITIAL_MASTER_DATA;
   },
   updateMasterData: (data: MasterData) => {
-    localStorage.setItem(KEYS.MASTER_DATA, JSON.stringify(data));
+    localStorage.setItem('pp_master_data', JSON.stringify(data));
   },
-
   getCurrentUser: (): User | null => {
     const data = localStorage.getItem(KEYS.CURRENT_USER);
     return data ? JSON.parse(data) : null;
