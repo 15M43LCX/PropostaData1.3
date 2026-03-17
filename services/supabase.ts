@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Erro: Variáveis de ambiente do Supabase não configuradas!")
+  console.error("Erro: Variáveis do Supabase não encontradas na Vercel!")
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl || '', supabaseKey || '')
