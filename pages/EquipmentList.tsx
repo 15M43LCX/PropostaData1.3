@@ -4,10 +4,15 @@ import { Printer, Plus, Edit, Package, Hash, CheckCircle, Save, X, Upload, Trash
 import { storage } from '../services/storage';
 import { Equipment, User } from '../types';
 
-const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
-  const [equipments, setEquipments] = useState<Equipment[]>(storage.getEquipments());
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentEq, setCurrentEq] = useState<Partial<Equipment>>({});
+const [equipments, setEquipments] = useState<Equipment[]>([]);
+const [loading, setLoading] = useState(true);
+
+const loadData = async () => {
+  setLoading(true);
+  setEquipments(await storage.getEquipments());
+  setLoading(false);
+};
+useEffect(() => { loadData(); }, []);
 
   const handleNew = () => {
     setCurrentEq({
