@@ -5,9 +5,26 @@ import { storage } from '../services/storage';
 import { User, Customer, UserRole } from '../types';
 
 const CustomerList: React.FC<{ user: User }> = ({ user }) => {
-  const [customers, setCustomers] = useState<Customer[]>(storage.getVisibleCustomers(user));
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentCustomer, setCurrentCustomer] = useState<Partial<Customer>>({});
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    setLoading(true);
+    setCustomers(await storage.getVisibleCustomers(user));
+    setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  // Onde salvar/deletar clientes, troque por:
+  const handleSave = async () => {
+    await storage.saveCustomer(customerData);
+    await loadData();
+  };
+  const handleDelete = async (id: string) => {
+    await storage.deleteCustomer(id);
+    await loadData();
+  };
 
   const handleNew = () => {
     setCurrentCustomer({
