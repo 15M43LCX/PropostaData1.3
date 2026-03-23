@@ -6,13 +6,27 @@ import { storage } from '../services/storage';
 import { ChevronRight, Edit, FileText, User as UserIcon, Calendar, DollarSign, CheckCircle, Clock, Ban } from 'lucide-react';
 
 const KanbanBoard: React.FC<{ user: User }> = ({ user }) => {
-  const navigate = useNavigate();
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const customers = storage.getCustomers();
+const [proposals, setProposals] = useState<Proposal[]>([]);
+const [customers, setCustomers] = useState<Customer[]>([]);
 
-  const loadData = () => {
-    setProposals(storage.getVisibleProposals(user));
+useEffect(() => {
+  const load = async () => {
+    const [p, c] = await Promise.all([
+      storage.getVisibleProposals(user),
+      storage.getCustomers(),
+    ]);
+    setProposals(p); setCustomers(c);
   };
+  load();
+}, []);
+
+// Ao mover card no Kanban:
+const handleStatusChange = async (id: string, status: ProposalStatus) => {
+  const updated = proposals.find(p => p.id === id);
+  if (!updated) return;
+  await storage.saveProposal({ ...updated, status });
+  setProposals(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+};
 
   useEffect(() => {
     loadData();
