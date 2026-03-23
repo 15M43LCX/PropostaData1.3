@@ -1,36 +1,34 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ProposalStatus, User, Proposal } from '../types';
+import { ProposalStatus, User, Proposal, Customer } from '../types';
 import { storage } from '../services/storage';
-import { ChevronRight, Edit, FileText, User as UserIcon, Calendar, DollarSign, CheckCircle, Clock, Ban } from 'lucide-react';
+import { Edit, FileText, Calendar, DollarSign, CheckCircle, Clock, Ban } from 'lucide-react';
 
 const KanbanBoard: React.FC<{ user: User }> = ({ user }) => {
-const [proposals, setProposals] = useState<Proposal[]>([]);
-const [customers, setCustomers] = useState<Customer[]>([]);
+  const navigate = useNavigate();
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
 
-useEffect(() => {
-  const load = async () => {
+  const loadData = async () => {
     const [p, c] = await Promise.all([
       storage.getVisibleProposals(user),
       storage.getCustomers(),
     ]);
-    setProposals(p); setCustomers(c);
+    setProposals(p);
+    setCustomers(c);
+    setLoading(false);
   };
-  load();
-}, []);
 
-// Ao mover card no Kanban:
-const handleStatusChange = async (id: string, status: ProposalStatus) => {
-  const updated = proposals.find(p => p.id === id);
-  if (!updated) return;
-  await storage.saveProposal({ ...updated, status });
-  setProposals(prev => prev.map(p => p.id === id ? { ...p, status } : p));
-};
+  useEffect(() => { loadData(); }, [user]);
 
-  useEffect(() => {
-    loadData();
-  }, [user]);
+  const handleUpdateStatus = async (proposal: Proposal, newStatus: ProposalStatus) => {
+    const updated: Proposal = { ...proposal, status: newStatus };
+    await storage.saveProposal(updated);
+    setProposals(prev => prev.map(p => p.id === proposal.id ? updated : p));
+  };
+
+  const getCustomerName = (id: string) => customers.find(c => c.id === id)?.companyName || 'N/A';
 
   const columns: { status: ProposalStatus; label: string; icon: any; color: string }[] = [
     { status: ProposalStatus.ABERTO, label: 'Prospecção / Aberto', icon: FileText, color: 'border-blue-500 bg-blue-50/30' },
@@ -39,13 +37,13 @@ const handleStatusChange = async (id: string, status: ProposalStatus) => {
     { status: ProposalStatus.PERDIDO, label: 'Perdido', icon: Ban, color: 'border-red-500 bg-red-50/30' }
   ];
 
-  const handleUpdateStatus = (proposal: Proposal, newStatus: ProposalStatus) => {
-    const updated: Proposal = { ...proposal, status: newStatus };
-    storage.saveProposal(updated);
-    loadData(); // Re-sincroniza o estado local com o storage
-  };
-
-  const getCustomerName = (id: string) => customers.find(c => c.id === id)?.companyName || 'N/A';
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col space-y-8 animate-in fade-in duration-500 pb-10">
@@ -56,7 +54,7 @@ const handleStatusChange = async (id: string, status: ProposalStatus) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto pb-6 scrollbar-hide">
+      <div className="flex-1 overflow-x-auto pb-6">
         <div className="flex gap-8 h-full min-w-max px-2">
           {columns.map(col => {
             const colProposals = proposals.filter(p => p.status === col.status);
@@ -70,7 +68,7 @@ const handleStatusChange = async (id: string, status: ProposalStatus) => {
                   <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[10px] font-black">{colProposals.length}</span>
                 </div>
 
-                <div className="flex-1 space-y-5 overflow-y-auto pr-2 custom-scrollbar min-h-[400px]">
+                <div className="flex-1 space-y-5 overflow-y-auto pr-2 min-h-[400px]">
                   {colProposals.map(p => (
                     <div key={p.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 group cursor-default">
                       <div className="flex justify-between items-start mb-4">
@@ -79,9 +77,9 @@ const handleStatusChange = async (id: string, status: ProposalStatus) => {
                           <Edit size={16} />
                         </button>
                       </div>
-                      
+
                       <h4 className="font-black text-slate-800 text-sm mb-4 line-clamp-2 leading-tight uppercase tracking-tight">{getCustomerName(p.customerId)}</h4>
-                      
+
                       <div className="space-y-2 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100/50">
                         <div className="flex items-center gap-2 text-xs">
                           <DollarSign size={14} className="text-emerald-500" />
@@ -94,15 +92,15 @@ const handleStatusChange = async (id: string, status: ProposalStatus) => {
                       </div>
 
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                         {col.status !== ProposalStatus.EM_NEGOCIACAO && col.status !== ProposalStatus.FECHADO && (
-                           <button onClick={() => handleUpdateStatus(p, ProposalStatus.EM_NEGOCIACAO)} className="flex-1 bg-amber-50 text-[9px] font-black text-amber-600 py-2 rounded-xl border border-amber-100 hover:bg-amber-600 hover:text-white transition uppercase tracking-tighter">Negociar</button>
-                         )}
-                         {col.status !== ProposalStatus.FECHADO && (
-                           <button onClick={() => handleUpdateStatus(p, ProposalStatus.FECHADO)} className="flex-1 bg-emerald-50 text-[9px] font-black text-emerald-600 py-2 rounded-xl border border-emerald-100 hover:bg-emerald-600 hover:text-white transition uppercase tracking-tighter">Fechar</button>
-                         )}
-                         {col.status !== ProposalStatus.PERDIDO && (
-                           <button onClick={() => handleUpdateStatus(p, ProposalStatus.PERDIDO)} className="bg-red-50 text-[9px] font-black text-red-400 p-2 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition"><Ban size={12} /></button>
-                         )}
+                        {col.status !== ProposalStatus.EM_NEGOCIACAO && col.status !== ProposalStatus.FECHADO && (
+                          <button onClick={() => handleUpdateStatus(p, ProposalStatus.EM_NEGOCIACAO)} className="flex-1 bg-amber-50 text-[9px] font-black text-amber-600 py-2 rounded-xl border border-amber-100 hover:bg-amber-600 hover:text-white transition uppercase tracking-tighter">Negociar</button>
+                        )}
+                        {col.status !== ProposalStatus.FECHADO && (
+                          <button onClick={() => handleUpdateStatus(p, ProposalStatus.FECHADO)} className="flex-1 bg-emerald-50 text-[9px] font-black text-emerald-600 py-2 rounded-xl border border-emerald-100 hover:bg-emerald-600 hover:text-white transition uppercase tracking-tighter">Fechar</button>
+                        )}
+                        {col.status !== ProposalStatus.PERDIDO && (
+                          <button onClick={() => handleUpdateStatus(p, ProposalStatus.PERDIDO)} className="bg-red-50 text-[9px] font-black text-red-400 p-2 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition"><Ban size={12} /></button>
+                        )}
                       </div>
                     </div>
                   ))}
