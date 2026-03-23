@@ -1,24 +1,37 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// Added ChevronRight to imports
 import { FileText, Users, Printer, TrendingUp, Target, PlusCircle, Kanban, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { storage } from '../services/storage';
-import { User, ProposalStatus } from '../types';
+import { User, ProposalStatus, MasterData, Proposal, Customer } from '../types';
+import { INITIAL_MASTER_DATA } from '../constants';
 
 const Dashboard: React.FC<{ user: User }> = ({ user }) => {
   const navigate = useNavigate();
-  const proposals = storage.getVisibleProposals(user);
-  const customers = storage.getVisibleCustomers(user);
-  const equipmentCount = storage.getEquipments().length;
-  const masterData = storage.getMasterData();
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [masterData, setMasterData] = useState<MasterData>(INITIAL_MASTER_DATA);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const [p, c, md] = await Promise.all([
+        storage.getVisibleProposals(user),
+        storage.getVisibleCustomers(user),
+        storage.getMasterData(),
+      ]);
+      setProposals(p);
+      setCustomers(c);
+      setMasterData(md);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
 
   const closedProposals = proposals.filter(p => p.status === ProposalStatus.FECHADO);
   const totalClosedValue = closedProposals.reduce((acc, curr) => acc + curr.totalValue, 0);
   const conversionRate = proposals.length > 0 ? (closedProposals.length / proposals.length) * 100 : 0;
-  
-  const goalProgress = (totalClosedValue / masterData.salesGoal) * 100;
+  const goalProgress = masterData.salesGoal > 0 ? (totalClosedValue / masterData.salesGoal) * 100 : 0;
 
   const stats = [
     { label: 'Propostas', value: proposals.length, icon: FileText, color: 'bg-blue-600', path: '/proposals' },
@@ -32,6 +45,14 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
     { name: 'Total Fechado', value: totalClosedValue }
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       <div className="flex items-center justify-between">
@@ -40,14 +61,14 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
           <p className="text-slate-500 font-medium">Bem-vindo, {user.name.split(' ')[0]}. Aqui está seu resumo comercial.</p>
         </div>
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={() => navigate('/kanban')}
             className="bg-white border border-slate-200 text-slate-700 font-bold py-2.5 px-6 rounded-xl flex items-center gap-2 hover:bg-slate-50 transition shadow-sm"
           >
             <Kanban size={20} className="text-blue-500" />
             Ver Mural
           </button>
-          <button 
+          <button
             onClick={() => navigate('/proposals/new')}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl flex items-center gap-2 transition shadow-lg shadow-blue-200"
           >
@@ -59,8 +80,8 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
-          <div 
-            key={idx} 
+          <div
+            key={idx}
             onClick={() => navigate(stat.path)}
             className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md hover:-translate-y-1 transition-all group"
           >
@@ -88,21 +109,21 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
             Desempenho vs Meta
           </h3>
           <div className="h-72">
-             <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 20 }}>
-                 <XAxis type="number" hide />
-                 <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} fontWeight="bold" width={100} />
-                 <Tooltip 
-                    cursor={{fill: '#f8fafc'}}
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.1)' }}
-                 />
-                 <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={45}>
-                   {chartData.map((entry, index) => (
-                     <Cell key={`cell-${index}`} fill={index === 0 ? '#f1f5f9' : '#2563eb'} />
-                   ))}
-                 </Bar>
-               </BarChart>
-             </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                <XAxis type="number" hide />
+                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={11} fontWeight="bold" width={100} />
+                <Tooltip
+                  cursor={{ fill: '#f8fafc' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.1)' }}
+                />
+                <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={45}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index === 0 ? '#f1f5f9' : '#2563eb'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
           <div className="mt-8 flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
             <div className="flex-1">
@@ -111,7 +132,7 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
                 <span className="text-sm font-black text-blue-600">{goalProgress.toFixed(1)}%</span>
               </div>
               <div className="w-full h-4 bg-white rounded-full overflow-hidden border border-slate-100">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 to-blue-700 rounded-full transition-all duration-1000 shadow-inner"
                   style={{ width: `${Math.min(goalProgress, 100)}%` }}
                 ></div>
@@ -140,8 +161,8 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   </div>
                   <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
-                    p.status === ProposalStatus.FECHADO ? 'bg-green-100 text-green-700' : 
-                    p.status === ProposalStatus.ABERTO ? 'bg-blue-100 text-blue-700' : 
+                    p.status === ProposalStatus.FECHADO ? 'bg-green-100 text-green-700' :
+                    p.status === ProposalStatus.ABERTO ? 'bg-blue-100 text-blue-700' :
                     p.status === ProposalStatus.EM_NEGOCIACAO ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
                   }`}>
                     {p.status}
@@ -156,7 +177,7 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={() => navigate('/proposals')}
             className="w-full mt-8 py-3 text-xs font-bold text-slate-500 hover:text-blue-600 border border-slate-100 rounded-xl hover:bg-blue-50 hover:border-blue-100 transition-all uppercase tracking-[0.2em]"
           >
