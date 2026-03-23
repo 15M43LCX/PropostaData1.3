@@ -23,22 +23,22 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleLogin = (email: string, pass: string) => {
-    const allUsers = storage.getUsers();
-    let found = allUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    
-    // Fallback de emergência para o admin caso o storage falhe
-    if (!found && email.toLowerCase() === 'admin@empresa.com') {
-      found = allUsers.find(u => u.id === 'u1');
-    }
-
-    if (found && pass === '123456') {
+  const handleLogin = async (email: string, pass: string) => {
+  try {
+    const allUsers = await storage.getUsers();
+    const found = allUsers.find(
+      u => u.email.toLowerCase() === email.toLowerCase() && u.password === pass
+    );
+    if (found) {
       storage.setCurrentUser(found);
       setUser(found);
       notify('Login realizado com sucesso', 'success');
     } else {
       notify('Senha incorreta ou usuário não encontrado', 'error');
     }
+  } catch (err) {
+    notify('Erro ao conectar. Verifique as configurações.', 'error');
+  }
   };
 
   const handleResetSystem = () => {
