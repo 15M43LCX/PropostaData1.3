@@ -282,7 +282,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                                 <h4 className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b pb-1">Configurações P&B (Mono)</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                   <div className="md:col-span-2">
-                                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Valor Mensal (por UN)</label>
+                                    <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{activeProp.pricingModel === 'Venda' ? 'Valor de Venda:' : 'Valor do Contrato (Mensal)</label>
                                     <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
                                   </div>
                                   <div>
