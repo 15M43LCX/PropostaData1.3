@@ -9,6 +9,7 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "types": ["vite/client"],
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
@@ -23,6 +24,7 @@
   "include": [
     "*.ts",
     "*.tsx",
+    "vite-env.d.ts",
     "pages/**/*.tsx",
     "services/**/*.ts",
     "types.ts",
