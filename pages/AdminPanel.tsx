@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Save, Plus, Trash2, Target, List, Image as ImageIcon,
-  Check, Upload, UserPlus, Users as UsersIcon, Edit, X, Lock
+  Check, Upload, UserPlus, Users as UsersIcon, Edit, X, Lock, Lightbulb
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { MasterData, User, UserRole } from '../types';
@@ -53,6 +53,21 @@ const AdminPanel: React.FC = () => {
     const updatedList = [...(data.commercialConditions || []), newCondition];
     handleUpdateField('commercialConditions', updatedList);
     setNewInputs(prev => ({ ...prev, commercialConditions: '' }));
+  };
+
+  const handleAddSolution = () => {
+    const title = newInputs.solutionTitle.trim();
+    const description = newInputs.solutionDesc.trim();
+    if (!title) return;
+    const newSolution = { id: crypto.randomUUID(), title, description };
+    const updatedList = [...(data.solutionTitles || []), newSolution];
+    handleUpdateField('solutionTitles', updatedList);
+    setNewInputs(prev => ({ ...prev, solutionTitle: '', solutionDesc: '' }));
+  };
+
+  const handleDeleteSolution = (id: string) => {
+    const updatedList = data.solutionTitles.filter(s => s.id !== id);
+    handleUpdateField('solutionTitles', updatedList);
   };
 
   const handleImageUpload = (type: keyof MasterData['layoutImages'], e: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,6 +216,49 @@ const AdminPanel: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {/* SEÇÃO SOLUÇÕES */}
+      <section className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
+        <div className="flex items-center gap-3 mb-6">
+          <Lightbulb className="text-blue-600" size={24} />
+          <h3 className="text-xl font-black text-slate-800">Soluções / Títulos de Proposta</h3>
+        </div>
+        <div className="flex flex-col gap-3 mb-6">
+          <input
+            className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold"
+            placeholder="Título da solução (ex: Outsourcing de Impressão)"
+            value={newInputs.solutionTitle}
+            onChange={(e) => setNewInputs(prev => ({ ...prev, solutionTitle: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddSolution()}
+          />
+          <div className="flex gap-2">
+            <input
+              className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+              placeholder="Descrição breve (opcional)"
+              value={newInputs.solutionDesc}
+              onChange={(e) => setNewInputs(prev => ({ ...prev, solutionDesc: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddSolution()}
+            />
+            <button onClick={handleAddSolution} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition flex items-center gap-2">
+              <Plus size={20} />
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {(data.solutionTitles || []).map((item) => (
+            <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <div>
+                <p className="text-sm font-bold text-slate-800">{item.title}</p>
+                {item.description && <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>}
+              </div>
+              <button onClick={() => handleDeleteSolution(item.id)} className="text-slate-300 hover:text-red-500 ml-4 flex-shrink-0"><Trash2 size={16} /></button>
+            </div>
+          ))}
+          {(data.solutionTitles || []).length === 0 && (
+            <p className="text-sm text-slate-400 col-span-2 text-center py-4">Nenhuma solução cadastrada ainda.</p>
+          )}
+        </div>
+      </section>
 
       {/* SEÇÃO CONDIÇÕES COMERCIAIS */}
       <section className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
