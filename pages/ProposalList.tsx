@@ -295,7 +295,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                 <div className="divide-y-2 divide-slate-50">
                   <div className="p-8 flex justify-between items-center">
                     <span className="text-slate-500 font-black uppercase text-[11px] tracking-widest">
-                      {activeProp.pricingModel === PricingModel.VENDA ? 'Valor Total do Investimento:' : 'Valor do Contrato (Mensal):'}
+                      {activeProp.pricingModel === PricingModel.VENDA ? 'Valor Total do Investimento:' : 'Valor Total do (s) Equipamento (s):'}
                     </span>
                     <span className="font-black text-3xl text-slate-900 font-montserrat tracking-tighter">
                       R$ {activeProp.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
