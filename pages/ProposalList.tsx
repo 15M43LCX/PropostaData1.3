@@ -102,14 +102,19 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     }, 1500);
   };
 
+  // Lógica de Breakdown Corrigida para suportar Venda, Outsourcing e Clique
   const getProposalBreakdown = (prop: Proposal) => {
     const totalMonoFranchise = prop.items.reduce((acc, curr) => acc + (curr.monoFranchise * curr.quantity), 0);
     const monoExcessRate = prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
+    
+    // Captura o preço por página/clique
     const monoClickRate = prop.items.find(i => (i.monoClickPrice || 0) > 0)?.monoClickPrice || 0;
+
     const colorItems = prop.items.filter(item => equipments.find(e => e.id === item.equipmentId)?.isColor);
     const totalColorFranchise = colorItems.reduce((acc, curr) => acc + ((curr.colorFranchise || 0) * curr.quantity), 0);
     const colorExcessRate = colorItems.find(i => (i.colorExcess || 0) > 0)?.colorExcess || 0;
     const colorClickRate = colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
+
     return {
       mono: { totalFranchise: totalMonoFranchise, excessRate: monoExcessRate, clickRate: monoClickRate },
       color: { totalFranchise: totalColorFranchise, excessRate: colorExcessRate, clickRate: colorClickRate }
@@ -127,6 +132,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      {/* ... Cabeçalho idêntico ao original ... */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-black text-slate-800 font-montserrat tracking-tight">Vendas e Propostas</h2>
@@ -191,21 +197,20 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
       {activeProp && (
         <div className="pdf-template" ref={pdfRef}>
-          {/* PÁGINA 1: CAPA */}
+          {/* ... Páginas 1 e 2 idênticas ... */}
           <div className="pdf-page flex flex-col items-center justify-end pb-24 relative bg-white overflow-hidden">
-            {masterData.layoutImages.cover && <img src={masterData.layoutImages.cover} className="w-full h-full object-cover absolute inset-0" alt="Capa" />}
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <h2 className="text-2xl font-medium text-slate-700 uppercase tracking-[0.2em] mb-1">Proposta Comercial</h2>
-              <p className="text-4xl font-black text-slate-900 font-montserrat uppercase tracking-tight mb-4">Nº {activeProp.code}</p>
-            </div>
+             {masterData.layoutImages.cover && <img src={masterData.layoutImages.cover} className="w-full h-full object-cover absolute inset-0" alt="Capa" />}
+             <div className="relative z-10 flex flex-col items-center text-center">
+               <h2 className="text-2xl font-medium text-slate-700 uppercase tracking-[0.2em] mb-1">Proposta Comercial</h2>
+               <p className="text-4xl font-black text-slate-900 font-montserrat uppercase tracking-tight mb-4">Nº {activeProp.code}</p>
+             </div>
           </div>
 
-          {/* PÁGINA 2: APRESENTAÇÃO */}
           <div className="pdf-page flex flex-col items-center justify-center relative bg-white overflow-hidden">
-            {masterData.layoutImages.intro && <img src={masterData.layoutImages.intro} className="w-full h-full object-cover absolute inset-0" alt="Apresentação" />}
+             {masterData.layoutImages.intro && <img src={masterData.layoutImages.intro} className="w-full h-full object-cover absolute inset-0" alt="Apresentação" />}
           </div>
 
-          {/* PÁGINAS DE EQUIPAMENTOS */}
+          {/* Renderização dos Itens */}
           {(() => {
             const chunks: typeof activeProp.items[] = [];
             for (let i = 0; i < activeProp.items.length; i += 2) {
@@ -220,7 +225,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                   <div className="flex justify-center mb-8">
                     <div className="text-[#00AEEF] text-3xl font-black font-montserrat tracking-tighter uppercase">DATICOPY</div>
                   </div>
-
                   {pageIdx === 0 && (
                     <div className="mb-10 flex flex-col items-center">
                       <div className="bg-slate-50/50 backdrop-blur-sm p-8 rounded-[32px] border border-slate-100 w-full text-center shadow-sm">
@@ -236,7 +240,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                     </div>
                   )}
-
                   <div className="space-y-10 flex-1">
                     {chunk.map((item, idx) => {
                       const globalIdx = (pageIdx * 2) + idx;
@@ -273,41 +276,80 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
             ));
           })()}
 
-          {/* PÁGINA FINAL: CONDIÇÕES */}
+          {/* PÁGINA FINAL: CONDIÇÕES COMERCIAIS ADAPTADAS */}
           <div className="pdf-page flex flex-col p-16 bg-white relative">
             {masterData.layoutImages.background && <img src={masterData.layoutImages.background} className="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none" alt="Fundo" />}
             <div className="relative z-10 flex flex-col h-full">
               <div className="flex justify-between items-center mb-10 border-b-2 border-slate-50 pb-6">
                 <div className="text-[#00AEEF] text-3xl font-black font-montserrat tracking-tighter uppercase">DATICOPY</div>
               </div>
+              
               <h2 className="text-[#00AEEF] text-2xl font-black uppercase mb-8 border-l-8 border-[#00AEEF] pl-6">CONDIÇÕES COMERCIAIS</h2>
+              
               <div className="border-2 border-slate-100 rounded-[40px] overflow-hidden mb-8 shadow-sm bg-white/80 backdrop-blur-sm">
                 <div className="bg-[#eff6ff]/50 p-6 text-[#1e40af] font-black uppercase text-sm border-b-2 border-slate-100 flex items-center gap-3">
                   <div className="w-2 h-6 bg-[#00AEEF] rounded-full"></div>
                   Investimento em {activeProp.pricingModel}
                 </div>
+                
                 <div className="divide-y-2 divide-slate-50">
                   <div className="p-8 flex justify-between items-center">
-                    <span className="text-slate-500 font-black uppercase text-[11px] tracking-widest">Valor do Contrato (Mensal):</span>
-                    <span className="font-black text-3xl text-slate-900 font-montserrat tracking-tighter">R$ {activeProp.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <span className="text-slate-500 font-black uppercase text-[11px] tracking-widest">
+                      {activeProp.pricingModel === PricingModel.VENDA ? 'Valor Total do Investimento:' : 'Valor do Contrato (Mensal):'}
+                    </span>
+                    <span className="font-black text-3xl text-slate-900 font-montserrat tracking-tighter">
+                      R$ {activeProp.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
+
                   {(() => {
                     const breakdown = getProposalBreakdown(activeProp);
-                    const isNotVenda = activeProp.pricingModel !== PricingModel.VENDA;
+                    const isOutsourcing = activeProp.pricingModel === PricingModel.OUTSOURCING;
+                    const isClique = activeProp.pricingModel === PricingModel.CLIQUE;
+
                     return (
                       <>
-                        {isNotVenda && (breakdown.mono.totalFranchise > 0 || breakdown.mono.clickRate > 0) && (
+                        {/* Seção Mono */}
+                        {(isOutsourcing || isClique) && (breakdown.mono.clickRate > 0 || breakdown.mono.totalFranchise > 0) && (
                           <div className="p-6 px-8 bg-slate-50/20">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-100 pb-1">Serviços de Impressão Monocromática (P&B)</p>
-                            {breakdown.mono.totalFranchise > 0 && <div className="flex justify-between items-center mb-3"><span className="text-slate-500 font-bold text-xs">FRANQUIA:</span><span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span></div>}
-                            {breakdown.mono.clickRate > 0 && <div className="flex justify-between items-center mb-3"><span className="text-blue-500 font-bold text-[10px]">PÁGINA PRODUZIDA:</span><span className="font-black text-blue-600">R$ {breakdown.mono.clickRate.toFixed(3)}</span></div>}
+                            
+                            {/* Só mostra franquia se for Outsourcing */}
+                            {isOutsourcing && breakdown.mono.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="text-slate-500 font-bold text-xs">FRANQUIA:</span>
+                                <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
+
+                            {/* Mostra o preço por página (Clique) para ambos os modelos */}
+                            {breakdown.mono.clickRate > 0 && (
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="text-blue-500 font-bold text-[10px]">PÁGINA PRODUZIDA:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.mono.clickRate.toFixed(3)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {isNotVenda && (breakdown.color.totalFranchise > 0 || breakdown.color.clickRate > 0) && (
+
+                        {/* Seção Colorida */}
+                        {(isOutsourcing || isClique) && (breakdown.color.clickRate > 0 || breakdown.color.totalFranchise > 0) && (
                           <div className="p-6 px-8 bg-blue-50/10 border-t-2 border-slate-50">
                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 border-b border-blue-50 pb-1">Serviços de Impressão Colorida</p>
-                            {breakdown.color.totalFranchise > 0 && <div className="flex justify-between items-center mb-3"><span className="text-blue-600 font-bold text-xs">FRANQUIA:</span><span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span></div>}
-                            {breakdown.color.clickRate > 0 && <div className="flex justify-between items-center mb-3"><span className="text-blue-500 font-bold text-[10px]">CLIQUE:</span><span className="font-black text-blue-600">R$ {breakdown.color.clickRate.toFixed(3)}</span></div>}
+                            
+                            {isOutsourcing && breakdown.color.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="text-blue-600 font-bold text-xs">FRANQUIA:</span>
+                                <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
+
+                            {breakdown.color.clickRate > 0 && (
+                              <div className="flex justify-between items-center mb-3">
+                                <span className="text-blue-500 font-bold text-[10px]">CLIQUE:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.clickRate.toFixed(3)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
@@ -316,6 +358,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
+              {/* Condições e Assinaturas permanecem iguais */}
               <div className="border-2 border-slate-100 rounded-[40px] overflow-hidden shadow-sm bg-white/80 backdrop-blur-sm">
                 <div className="bg-[#f8fafc]/50 p-6 text-slate-800 font-black uppercase text-sm border-b-2 border-slate-100 flex items-center gap-3">
                   <div className="w-2 h-6 bg-slate-400 rounded-full"></div>
