@@ -1,10 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Users, Printer, TrendingUp, Target, PlusCircle, Kanban, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { storage } from '../services/storage';
 import { User, ProposalStatus, MasterData, Proposal, Customer } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
+
+// Retorna "YYYY-MM" do mês atual
+const currentYearMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+// Retorna "YYYY-MM" a partir de uma string de data pt-BR "DD/MM/YYYY"
+const getYearMonth = (dateStr: string): string => {
+  const parts = dateStr.split('/');
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}`;
+  return '';
+};
 
 const Dashboard: React.FC<{ user: User }> = ({ user }) => {
   const navigate = useNavigate();
@@ -28,16 +41,40 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
     load();
   }, [user]);
 
+  // Taxa de conversão: considera apenas propostas DO MÊS ATUAL
+  const thisMonth = currentYearMonth();
+
+  const proposalsThisMonth = useMemo(
+    () => proposals.filter(p => getYearMonth(p.date) === thisMonth),
+    [proposals, thisMonth]
+  );
+
+  const closedProposalsThisMonth = useMemo(
+    () => proposalsThisMonth.filter(p => p.status === ProposalStatus.FECHADO),
+    [proposalsThisMonth]
+  );
+
+  const conversionRate = proposalsThisMonth.length > 0
+    ? (closedProposalsThisMonth.length / proposalsThisMonth.length) * 100
+    : 0;
+
+  // Totais gerais (para desempenho vs meta)
   const closedProposals = proposals.filter(p => p.status === ProposalStatus.FECHADO);
   const totalClosedValue = closedProposals.reduce((acc, curr) => acc + curr.totalValue, 0);
-  const conversionRate = proposals.length > 0 ? (closedProposals.length / proposals.length) * 100 : 0;
   const goalProgress = masterData.salesGoal > 0 ? (totalClosedValue / masterData.salesGoal) * 100 : 0;
 
   const stats = [
     { label: 'Propostas', value: proposals.length, icon: FileText, color: 'bg-blue-600', path: '/proposals' },
     { label: 'Clientes', value: customers.length, icon: Users, color: 'bg-indigo-600', path: '/customers' },
     { label: 'No Funil (Kanban)', value: proposals.filter(p => p.status === ProposalStatus.EM_NEGOCIACAO).length, icon: Kanban, color: 'bg-amber-500', path: '/kanban' },
-    { label: 'Taxa Conversão', value: `${conversionRate.toFixed(1)}%`, icon: TrendingUp, color: 'bg-emerald-500', path: '/proposals' },
+    {
+      label: 'Taxa Conversão (mês)',
+      value: `${conversionRate.toFixed(1)}%`,
+      icon: TrendingUp,
+      color: 'bg-emerald-500',
+      path: '/proposals',
+      subtitle: `${closedProposalsThisMonth.length}/${proposalsThisMonth.length} este mês`
+    },
   ];
 
   const chartData = [
@@ -89,6 +126,9 @@ const Dashboard: React.FC<{ user: User }> = ({ user }) => {
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{stat.label}</p>
                 <h3 className="text-3xl font-black text-slate-800 mt-1">{stat.value}</h3>
+                {'subtitle' in stat && stat.subtitle && (
+                  <p className="text-[10px] text-slate-400 mt-1">{stat.subtitle}</p>
+                )}
               </div>
               <div className={`${stat.color} p-3 rounded-xl text-white shadow-xl transform group-hover:scale-110 transition-transform`}>
                 <stat.icon size={24} />
