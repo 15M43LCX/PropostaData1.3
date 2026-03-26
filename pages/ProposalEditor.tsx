@@ -59,7 +59,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
         }
       } else {
         const year = new Date().getFullYear();
-        const sequence = (proposals.length + 1).toString().padStart(3, '0');
+        const sequence = (proposals.length + 1).toString().padStart(3, '79');
         setFormData(prev => ({
           ...prev,
           code: `${year}${sequence}`,
