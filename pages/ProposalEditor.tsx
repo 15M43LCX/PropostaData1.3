@@ -59,7 +59,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
         }
       } else {
         const year = new Date().getFullYear();
-        const sequence = (proposals.length + 1).toString().padStart(3, '79');
+        const sequence = (proposals.length + 1).toString().padStart(3, '078');
         setFormData(prev => ({
           ...prev,
           code: `${year}${sequence}`,
@@ -168,7 +168,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
         </h2>
         <div className="flex gap-2">
           {[1, 2, 3].map(s => (
-            <div key={s} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${step === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+            <div key={s} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${step === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
               {s}
             </div>
           ))}
