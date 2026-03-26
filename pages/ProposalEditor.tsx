@@ -241,7 +241,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
 
                 if (item.isExtra) {
                   return (
-                    <div key={idx} className="p-6 bg-amber-50 rounded-2xl border border-amber-200 relative mb-4">
+                    <div key={idx} className="p-6 bg-amber-50 rounded-2xl border border-amber-700 relative mb-4">
                       <button onClick={() => removeItem(idx)} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                       <div className="flex items-center gap-2 mb-4">
                         <Star size={14} className="text-amber-500" />
