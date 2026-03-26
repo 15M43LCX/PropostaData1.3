@@ -59,7 +59,9 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
         }
       } else {
         const year = new Date().getFullYear();
-        const sequence = (proposals.length + 1).toString().padStart(3, '078');
+        const proximaSequencia = proposals.length + 78;
+        const sequence = proximaSequencia.toString().padStart(3, '0');
+        
         setFormData(prev => ({
           ...prev,
           code: `${year}${sequence}`,
@@ -82,7 +84,6 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     } else if (formData.pricingModel === PricingModel.OUTSOURCING) {
       total = formData.items.reduce((acc, curr) => acc + ((curr.monthlyValue || 0) * curr.quantity), 0);
     }
-    // CLIQUE: total permanece 0
     setFormData(prev => ({ ...prev, totalValue: total }));
   }, [formData.items, formData.pricingModel]);
 
@@ -177,20 +178,27 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
 
       <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden">
         <div className="p-8">
-
           {step === 1 && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Cliente</label>
-                  <select className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}>
+                  <select 
+                    className="w-full p-4 bg-slate-50 rounded-xl font-bold" 
+                    value={formData.customerId} 
+                    onChange={e => setFormData({ ...formData, customerId: e.target.value })}
+                  >
                     <option value="">Selecione...</option>
                     {customers.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
                   </select>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Título da Solução</label>
-                  <select className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})}>
+                  <select 
+                    className="w-full p-4 bg-slate-50 rounded-xl font-bold" 
+                    value={formData.title} 
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                  >
                     <option value="">Selecione...</option>
                     {masterData.solutionTitles.map(t => <option key={t.id} value={t.title}>{t.title}</option>)}
                   </select>
@@ -260,29 +268,52 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                         </div>
                         <div>
                           <label className="text-[9px] font-black text-slate-400 uppercase">Qtd</label>
-                          <input type="number" className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-amber-200" value={item.quantity} onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} />
+                          <input 
+                            type="number" 
+                            className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-amber-200" 
+                            value={item.quantity} 
+                            onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} 
+                          />
                         </div>
                         <div className="col-span-4 grid grid-cols-2 gap-4 mt-2 pt-4 border-t border-amber-200">
                           {formData.pricingModel === PricingModel.VENDA && (
                             <div className="col-span-2">
                               <label className="text-[9px] font-black text-blue-600 uppercase">Valor Unitário (R$)</label>
-                              <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
+                              <input 
+                                type="number" 
+                                className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" 
+                                value={item.unitValue || 0} 
+                                onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} 
+                              />
                             </div>
                           )}
                           {(formData.pricingModel === PricingModel.OUTSOURCING || formData.pricingModel === PricingModel.CLIQUE) && (
                             <div className="col-span-2">
                               <label className="text-[9px] font-black text-amber-600 uppercase">Valor Mensal (R$)</label>
-                              <input type="number" className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                              <input 
+                                type="number" 
+                                className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-800" 
+                                value={item.monthlyValue || 0} 
+                                onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} 
+                              />
                             </div>
                           )}
                           <div className="col-span-2">
                             <label className="text-[9px] font-black text-slate-400 uppercase">Observação / Texto do Ítem (opcional)</label>
-                            <textarea rows={2} placeholder="Texto descritivo para aparecer na proposta..." className="w-full p-3 bg-white border border-amber-200 rounded-xl font-medium text-sm resize-none" value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
+                            <textarea 
+                              rows={2} 
+                              placeholder="Texto descritivo para aparecer na proposta..." 
+                              className="w-full p-3 bg-white border border-amber-200 rounded-xl font-medium text-sm resize-none" 
+                              value={item.itemNote || ''} 
+                              onChange={e => updateItem(idx, { itemNote: e.target.value })} 
+                            />
                           </div>
                         </div>
                         {formData.pricingModel !== PricingModel.CLIQUE && (
                           <div className="col-span-4 flex justify-end">
-                            <span className="text-[10px] font-black text-slate-400 uppercase">Subtotal: <span className="text-slate-700 text-sm">{formatCurrency(formData.pricingModel === PricingModel.VENDA ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity)}</span></span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase">
+                              Subtotal: <span className="text-slate-700 text-sm">{formatCurrency(formData.pricingModel === PricingModel.VENDA ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity)}</span>
+                            </span>
                           </div>
                         )}
                       </div>
@@ -302,179 +333,45 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                       <div>
                         <label className="text-[9px] font-black text-slate-400 uppercase">Qtd</label>
-                        <input type="number" className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.quantity} onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} />
+                        <input 
+                          type="number" 
+                          className="w-full p-3 bg-white rounded-xl font-bold text-sm" 
+                          value={item.quantity} 
+                          onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} 
+                        />
                       </div>
 
                       <div className="col-span-4 grid grid-cols-2 gap-4 mt-2 pt-4 border-t border-slate-200">
                         {formData.pricingModel === PricingModel.VENDA && (
                           <div className="col-span-2">
                             <label className="text-[9px] font-black text-blue-600 uppercase">Preço Unitário de Venda (R$)</label>
-                            <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
+                            <input 
+                              type="number" 
+                              className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" 
+                              value={item.unitValue} 
+                              onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} 
+                            />
                           </div>
                         )}
                         {formData.pricingModel === PricingModel.OUTSOURCING && (
                           <>
                             <div className="col-span-2">
                               <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
-                              <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                              <input 
+                                type="number" 
+                                className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" 
+                                value={item.monthlyValue} 
+                                onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} 
+                              />
                             </div>
                             <div className="space-y-2">
                               <p className="text-[9px] font-black text-slate-400 uppercase">Franquia Mono</p>
-                              <input type="number" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoFranchise} onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} />
+                              <input 
+                                type="number" 
+                                className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" 
+                                value={item.monoFranchise} 
+                                onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} 
+                              />
                             </div>
                             <div className="space-y-2">
-                              <p className="text-[9px] font-black text-slate-400 uppercase">Excedente Mono</p>
-                              <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoExcess} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                          </>
-                        )}
-                        {formData.pricingModel === PricingModel.CLIQUE && (
-                          <>
-                            <div className="col-span-2">
-                              <label className="text-[9px] font-black text-emerald-600 uppercase">Valor de Gestão/Mensal (R$)</label>
-                              <input type="number" className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800" value={item.monthlyValue} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                            <div className="col-span-2">
-                              <label className="text-[9px] font-black text-slate-400 uppercase">Preço por Página Produzida (P&B)</label>
-                              <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                            {isColor && (
-                              <div className="col-span-2">
-                                <label className="text-[9px] font-black text-slate-400 uppercase">Preço por Página Produzida (Color)</label>
-                                <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.colorClickPrice} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
-                              </div>
-                            )}
-                          </>
-                        )}
-                        <div className="col-span-4">
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Observação / Texto do Ítem (opcional)</label>
-                          <textarea rows={2} placeholder="Texto descritivo para aparecer na proposta..." className="w-full p-3 bg-white border border-slate-200 rounded-xl font-medium text-sm resize-none" value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
-                        </div>
-                      </div>
-
-                      {formData.pricingModel !== PricingModel.CLIQUE && (
-                        <div className="col-span-4 flex justify-end mt-1">
-                          <span className="text-[10px] font-black text-slate-400 uppercase">Subtotal: <span className="text-slate-700 text-sm">{formatCurrency(formData.pricingModel === PricingModel.VENDA ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity)}</span></span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {formData.items.length > 0 && totalLabel && (
-                <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center mt-4">
-                  <span className="text-[10px] font-black uppercase text-blue-400">{totalLabel}</span>
-                  <span className="text-2xl font-black text-white">{formatCurrency(formData.totalValue)}</span>
-                </div>
-              )}
-              {formData.items.length > 0 && !totalLabel && (
-                <div className="bg-emerald-900 rounded-2xl p-5 flex items-center justify-center mt-4">
-                  <span className="text-[10px] font-black uppercase text-emerald-300">Contrato de Clique — cobrança por página produzida</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6 animate-in fade-in">
-              {totalLabel ? (
-                <div className="bg-slate-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-blue-400 mb-1">{totalLabel}</p>
-                    <h3 className="text-5xl font-black">{formatCurrency(formData.totalValue)}</h3>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl text-right">
-                    <p className="text-[9px] font-black uppercase text-slate-300">Modelo Ativo</p>
-                    <p className="font-black text-blue-300">{formData.pricingModel}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-emerald-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-emerald-400 mb-1">Modelo Ativo</p>
-                    <h3 className="text-2xl font-black text-emerald-200">{formData.pricingModel}</h3>
-                    <p className="text-[10px] text-emerald-400 mt-1">Cobrança por clique — sem valor total fixo</p>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl text-right">
-                    <p className="text-[9px] font-black uppercase text-slate-300">{formData.items.length} ítens</p>
-                    <p className="font-black text-emerald-300">na proposta</p>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-2">Resumo dos Ítens</label>
-                <div className="space-y-2">
-                  {formData.items.map((item, idx) => {
-                    const eq = equipments.find(e => e.id === item.equipmentId);
-                    const isExtra = item.isExtra;
-                    const label = isExtra ? (item.extraDescription || 'Ítem Extra') : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
-                    const subtotal = formData.pricingModel === PricingModel.VENDA
-                      ? (item.unitValue || 0) * item.quantity
-                      : (item.monthlyValue || 0) * item.quantity;
-                    return (
-                      <div key={idx} className={`flex justify-between items-center p-3 rounded-xl text-sm ${isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {isExtra && <Star size={12} className="text-amber-500 flex-shrink-0" />}
-                          <span className="font-bold text-slate-700 truncate">{item.quantity}x {label}</span>
-                          {item.itemNote && <span className="text-[10px] text-slate-400 italic ml-1 truncate">— {item.itemNote}</span>}
-                        </div>
-                        {formData.pricingModel !== PricingModel.CLIQUE && (
-                          <span className="font-black text-slate-800 ml-4 flex-shrink-0">{formatCurrency(subtotal)}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase text-slate-400">Condições Comerciais</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 border-2 border-slate-50 rounded-2xl">
-                  {masterData.commercialConditions.map(c => {
-                    const isSelected = formData.selectedConditions?.includes(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          const current = formData.selectedConditions || [];
-                          const next = isSelected ? current.filter(cid => cid !== c.id) : [...current, c.id];
-                          setFormData({ ...formData, selectedConditions: next });
-                        }}
-                        className={`p-3 rounded-xl text-left text-[10px] font-bold border-2 transition-all ${isSelected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-50 text-slate-400 hover:border-slate-200'}`}
-                      >
-                        {c.condition}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl text-sm font-bold">
-                  <AlertCircle size={16} /> {error}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-slate-50 p-6 flex justify-between border-t border-slate-100">
-          <button onClick={() => step > 1 ? setStep(step - 1) : navigate('/proposals')} className="px-6 font-black text-slate-400 uppercase text-[10px] tracking-widest">
-            {step === 1 ? 'Cancelar' : 'Voltar'}
-          </button>
-          <button
-            onClick={() => step < 3 ? setStep(step + 1) : handleSave()}
-            disabled={isSaving}
-            className="bg-blue-600 text-white px-10 py-4 rounded-xl font-black hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-100 uppercase text-[10px] tracking-widest"
-          >
-            {isSaving ? 'Gravando...' : step < 3 ? 'Próximo Passo' : 'Gerar Proposta Final'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default ProposalEditor;
+                              <p
