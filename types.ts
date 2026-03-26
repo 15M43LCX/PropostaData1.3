@@ -73,6 +73,10 @@ export interface ProposalItem {
   colorFranchise?: number;
   colorExcess?: number;
   colorClickPrice?: number;
+  // Campos adicionais
+  itemNote?: string;       // Texto descritivo do item
+  isExtra?: boolean;       // Se é um "Ítem Extra"
+  extraDescription?: string; // Descrição do ítem extra
 }
 
 export interface Proposal {
@@ -109,4 +113,5 @@ export interface MasterData {
     intro: string;       
     background: string;  
   };
+  conversionResetMonth?: string; // Formato "YYYY-MM" — mês em que a taxa foi zerada
 }
