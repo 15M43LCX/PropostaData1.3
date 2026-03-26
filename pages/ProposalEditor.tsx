@@ -60,7 +60,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
          } else {
           const year = new Date().getFullYear();
           // Ajuste o número 78 abaixo para o número anterior ao que você deseja iniciar
-          const proximaSequencia = proposals.length + 78; 
+          const proximaSequencia = proposals.length + 77; 
           const sequence = proximaSequencia.toString().padStart(3, '0');  
   setFormData(prev => ({
     ...prev,
