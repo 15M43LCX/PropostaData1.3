@@ -56,9 +56,14 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     if (parts.length !== 3) return dateStr;
     const [day, month, year] = parts;
     const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    return `Rio de Janeiro, ${parseInt(day)} de ${months[parseInt(month) - 1]} de ${year}`;
+    
+    // Agora o texto sairá com cor cinza quase preta (slate-950) e em negrito máximo (font-black)
+    return (
+      <span className="text-slate-950 font-black">
+        Rio de Janeiro, {parseInt(day)} de {months[parseInt(month) - 1]} de {year}
+      </span>
+    );
   };
-
   // Label do total conforme modelo — Clique não tem total
   const getTotalLabel = (model: PricingModel): string | null => {
     if (model === PricingModel.VENDA) return 'Valor Total';
