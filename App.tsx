@@ -1,456 +1,293 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { HashRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import {
-  Save, Plus, Trash2, Target, List, Image as ImageIcon,
-  Check, Upload, UserPlus, Users as UsersIcon, Edit, X, Lock, Lightbulb
+  LogIn, LayoutDashboard, FileText, Users, Printer, Settings, LogOut,
+  BarChart3, X, CheckCircle2, AlertCircle, Kanban, ChevronLeft, ChevronRight, Menu
 } from 'lucide-react';
-import { storage } from '../services/storage';
-import { MasterData, User, UserRole } from '../types';
-import { INITIAL_MASTER_DATA } from '../constants';
+import { storage } from './services/storage';
+import { User, UserRole } from './types';
 
-const AdminPanel: React.FC = () => {
-  const [data, setData] = useState<MasterData>(INITIAL_MASTER_DATA);
-  const [users, setUsers] = useState<User[]>([]);
-  const [saveStatus, setSaveStatus] = useState(false);
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<Partial<User>>({
-    role: UserRole.SELLER,
-    name: '',
-    email: '',
-    phone: '',
-    roleInCompany: '',
-    password: ''
-  });
-  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [resetError, setResetError] = useState('');
-  const [newInputs, setNewInputs] = useState({
-    commercialConditions: '',
-    solutionTitle: '',
-    solutionDesc: ''
-  });
+import Dashboard from './pages/Dashboard';
+import ProposalList from './pages/ProposalList';
+import ProposalEditor from './pages/ProposalEditor';
+import CustomerList from './pages/CustomerList';
+import EquipmentList from './pages/EquipmentList';
+import AdminPanel from './pages/AdminPanel';
+import KanbanBoard from './pages/KanbanBoard';
 
-  const loadData = async () => {
-    const [md, u] = await Promise.all([storage.getMasterData(), storage.getUsers()]);
-    setData(md);
-    setUsers(u);
+const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(storage.getCurrentUser());
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const notify = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
   };
 
-  useEffect(() => { loadData(); }, []);
-
-  const persistData = useCallback(async (newData: MasterData) => {
-    setData(newData);
-    await storage.updateMasterData(newData);
-    setSaveStatus(true);
-    setTimeout(() => setSaveStatus(false), 2000);
+  const doLogout = useCallback(() => {
+    storage.setCurrentUser(null);
+    setUser(null);
+    setShowTimeoutWarning(false);
   }, []);
 
-  const handleUpdateField = <K extends keyof MasterData>(field: K, value: MasterData[K]) => {
-    const newData = { ...data, [field]: value };
-    persistData(newData);
-  };
+  // ── Timer de inatividade ──
+  const resetInactivity = useCallback(() => {
+    if (!user) return;
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    setShowTimeoutWarning(false);
+    // Aviso 2 min antes
+    warningTimer.current = setTimeout(() => setShowTimeoutWarning(true), INACTIVITY_MS - 2 * 60 * 1000);
+    inactivityTimer.current = setTimeout(() => doLogout(), INACTIVITY_MS);
+  }, [user, doLogout]);
 
-  const handleAddCondition = () => {
-    const text = newInputs.commercialConditions.trim();
-    if (!text) return;
-    const newCondition = { id: crypto.randomUUID(), condition: text };
-    const updatedList = [...(data.commercialConditions || []), newCondition];
-    handleUpdateField('commercialConditions', updatedList);
-    setNewInputs(prev => ({ ...prev, commercialConditions: '' }));
-  };
-
-  const handleAddSolution = () => {
-    const title = newInputs.solutionTitle.trim();
-    const description = newInputs.solutionDesc.trim();
-    if (!title) return;
-    const newSolution = { id: crypto.randomUUID(), title, description };
-    const updatedList = [...(data.solutionTitles || []), newSolution];
-    handleUpdateField('solutionTitles', updatedList);
-    setNewInputs(prev => ({ ...prev, solutionTitle: '', solutionDesc: '' }));
-  };
-
-  const handleDeleteSolution = (id: string) => {
-    const updatedList = data.solutionTitles.filter(s => s.id !== id);
-    handleUpdateField('solutionTitles', updatedList);
-  };
-
-  const handleImageUpload = (type: keyof MasterData['layoutImages'], e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('A imagem é muito grande. Use arquivos PNG de até 2MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const newData = {
-          ...data,
-          layoutImages: { ...data.layoutImages, [type]: reader.result as string }
-        };
-        persistData(newData);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleClearImage = (type: keyof MasterData['layoutImages']) => {
-    const newData = {
-      ...data,
-      layoutImages: { ...data.layoutImages, [type]: '' }
+  useEffect(() => {
+    if (!user) return;
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetInactivity, { passive: true }));
+    resetInactivity();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetInactivity));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+      if (warningTimer.current) clearTimeout(warningTimer.current);
     };
-    persistData(newData);
-  };
+  }, [user, resetInactivity]);
 
-  const handleSaveUser = async () => {
-    if (!currentUser.name || !currentUser.email || !currentUser.password) {
-      alert('Nome, E-mail e Senha são obrigatórios para o acesso.');
-      return;
-    }
-    const userToSave = { ...currentUser, id: currentUser.id || crypto.randomUUID() } as User;
-    await storage.saveUser(userToSave);
-    setUsers(await storage.getUsers());
-    setIsUserModalOpen(false);
-    setSaveStatus(true);
-    setTimeout(() => setSaveStatus(false), 2000);
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (window.confirm('Remover este usuário definitivamente?')) {
-      await storage.deleteUser(id);
-      setUsers(await storage.getUsers());
+  const handleLogin = async (email: string, pass: string) => {
+    try {
+      const allUsers = await storage.getUsers();
+      const found = allUsers.find(
+        u => u.email.toLowerCase() === email.toLowerCase() && u.password === pass
+      );
+      if (found) {
+        storage.setCurrentUser(found);
+        setUser(found);
+        notify('Login realizado com sucesso', 'success');
+      } else {
+        notify('Senha incorreta ou usuário não encontrado', 'error');
+      }
+    } catch {
+      notify('Erro ao conectar. Verifique as configurações.', 'error');
     }
   };
 
-  const handleOpenResetPassword = (userId: string) => {
-    setResetPasswordUserId(userId);
-    setNewPassword('');
-    setConfirmPassword('');
-    setResetError('');
+  const handleLogout = () => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    storage.setCurrentUser(null);
+    setUser(null);
   };
 
-  const handleResetPassword = async () => {
-    if (!newPassword || newPassword.length < 4) {
-      setResetError('A senha deve ter pelo menos 4 caracteres.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setResetError('As senhas não coincidem.');
-      return;
-    }
-    const userToUpdate = users.find(u => u.id === resetPasswordUserId);
-    if (!userToUpdate) return;
-    await storage.saveUser({ ...userToUpdate, password: newPassword });
-    setUsers(await storage.getUsers());
-    setResetPasswordUserId(null);
-    setSaveStatus(true);
-    setTimeout(() => setSaveStatus(false), 2000);
-  };
+  if (!user) {
+    return <Login onLogin={handleLogin} notification={notification} />;
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
-
-      {/* HEADER */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Painel Administrativo</h2>
-          <p className="text-slate-500 font-medium">Controle de sistema e ativos.</p>
-        </div>
-        {saveStatus && (
-          <div className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
-            <Check size={18} /> Alterações Salvas
-          </div>
-        )}
-      </div>
-
-      {/* SEÇÃO USUÁRIOS */}
-      <section className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3">
-            <UsersIcon className="text-blue-600" size={24} />
-            <h3 className="text-xl font-black text-slate-800">Vendedores & Administradores</h3>
-          </div>
-          <button
-            onClick={() => {
-              setCurrentUser({ role: UserRole.SELLER, name: '', email: '', phone: '', roleInCompany: '', password: '' });
-              setIsUserModalOpen(true);
-            }}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-2xl font-bold text-sm hover:bg-blue-700 transition flex items-center gap-2"
-          >
-            <UserPlus size={18} /> Novo Usuário
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {users.map(u => (
-            <div key={u.id} className="p-5 bg-slate-50 border border-slate-100 rounded-3xl flex justify-between items-center">
-              <div>
-                <h4 className="font-bold text-slate-800 text-sm">{u.name}</h4>
-                <p className="text-[10px] text-slate-400 uppercase tracking-tighter">{u.roleInCompany || 'Vendedor'} • {u.role}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">{u.email}</p>
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => handleOpenResetPassword(u.id)} className="p-2 text-slate-400 hover:text-amber-500 transition" title="Resetar Senha"><Lock size={14} /></button>
-                <button onClick={() => { setCurrentUser(u); setIsUserModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition" title="Editar Usuário"><Edit size={14} /></button>
-                <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-500 transition" title="Excluir Usuário"><Trash2 size={14} /></button>
-              </div>
+    <HashRouter>
+      {/* Aviso de inatividade */}
+      {showTimeoutWarning && (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={32} className="text-amber-500" />
             </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <section className="lg:col-span-2 bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 space-y-8">
-          <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
-            <ImageIcon className="text-blue-600" size={24} />
-            <h3 className="text-lg font-bold text-slate-800">Layout das Páginas (PNG)</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <ImageBox
-              title="Pág 1: Capa"
-              description="Background da Capa"
-              value={data.layoutImages.cover}
-              onUpload={(e) => handleImageUpload('cover', e)}
-              onClear={() => handleClearImage('cover')}
-            />
-            <ImageBox
-              title="Pág 2: Contra-Capa"
-              description="Apresentação Institucional"
-              value={data.layoutImages.intro}
-              onUpload={(e) => handleImageUpload('intro', e)}
-              onClear={() => handleClearImage('intro')}
-            />
-            <ImageBox
-              title="Pág 3+: Demais"
-              description="Papel Timbrado Padrão"
-              value={data.layoutImages.background}
-              onUpload={(e) => handleImageUpload('background', e)}
-              onClear={() => handleClearImage('background')}
-            />
-          </div>
-        </section>
-
-        <section className="bg-slate-900 p-8 rounded-[32px] shadow-xl text-white flex flex-col justify-between border border-slate-800">
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <Target className="text-blue-400" size={24} />
-              <h3 className="text-lg font-bold">Meta de Vendas</h3>
-            </div>
-            <div className="relative mt-4">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">R$</span>
-              <input
-                type="number"
-                className="w-full bg-slate-800 border border-slate-700 pl-12 pr-4 py-4 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-black text-2xl text-white"
-                value={data.salesGoal}
-                onChange={(e) => handleUpdateField('salesGoal', parseFloat(e.target.value) || 0)}
-              />
-            </div>
-          </div>
-        </section>
-      </div>
-
-      {/* SEÇÃO SOLUÇÕES */}
-      <section className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-        <div className="flex items-center gap-3 mb-6">
-          <Lightbulb className="text-blue-600" size={24} />
-          <h3 className="text-xl font-black text-slate-800">Soluções / Títulos de Proposta</h3>
-        </div>
-        <div className="flex flex-col gap-3 mb-6">
-          <input
-            className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold"
-            placeholder="Título da solução (ex: Outsourcing de Impressão)"
-            value={newInputs.solutionTitle}
-            onChange={(e) => setNewInputs(prev => ({ ...prev, solutionTitle: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddSolution()}
-          />
-          <div className="flex gap-2">
-            <input
-              className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
-              placeholder="Descrição breve (opcional)"
-              value={newInputs.solutionDesc}
-              onChange={(e) => setNewInputs(prev => ({ ...prev, solutionDesc: e.target.value }))}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddSolution()}
-            />
-            <button onClick={handleAddSolution} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition flex items-center gap-2">
-              <Plus size={20} />
-            </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {(data.solutionTitles || []).map((item) => (
-            <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-              <div>
-                <p className="text-sm font-bold text-slate-800">{item.title}</p>
-                {item.description && <p className="text-xs text-slate-400 mt-0.5">{item.description}</p>}
-              </div>
-              <button onClick={() => handleDeleteSolution(item.id)} className="text-slate-300 hover:text-red-500 ml-4 flex-shrink-0"><Trash2 size={16} /></button>
-            </div>
-          ))}
-          {(data.solutionTitles || []).length === 0 && (
-            <p className="text-sm text-slate-400 col-span-2 text-center py-4">Nenhuma solução cadastrada ainda.</p>
-          )}
-        </div>
-      </section>
-
-      {/* SEÇÃO CONDIÇÕES COMERCIAIS */}
-      <section className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100">
-        <div className="flex items-center gap-3 mb-6">
-          <List className="text-blue-600" size={24} />
-          <h3 className="text-xl font-black text-slate-800">Condições Comerciais</h3>
-        </div>
-        <div className="flex gap-2 mb-6">
-          <input
-            className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none"
-            placeholder="Ex: Pagamento em até 10x sem juros"
-            value={newInputs.commercialConditions}
-            onChange={(e) => setNewInputs(prev => ({ ...prev, commercialConditions: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && handleAddCondition()}
-          />
-          <button onClick={handleAddCondition} className="bg-slate-900 text-white px-6 rounded-xl font-bold hover:bg-black transition"><Plus size={20} /></button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {data.commercialConditions.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-xs font-medium text-slate-600">{typeof item === 'object' ? item.condition : item}</span>
-              <button onClick={() => handleUpdateField('commercialConditions', data.commercialConditions.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-red-500"><Trash2 size={16} /></button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* MODAL DE USUÁRIO */}
-      {isUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl border border-slate-100">
-            <div className="px-8 py-6 border-b flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Ficha Técnica do Usuário</h3>
-              <button onClick={() => setIsUserModalOpen(false)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-xl shadow-sm transition"><X size={20} /></button>
-            </div>
-            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Nome Completo</label>
-                <input className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentUser.name} onChange={e => setCurrentUser({ ...currentUser, name: e.target.value })} placeholder="João Silva" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Cargo</label>
-                  <input className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentUser.roleInCompany} onChange={e => setCurrentUser({ ...currentUser, roleInCompany: e.target.value })} placeholder="Ex: Gerente" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Celular / WhatsApp</label>
-                  <input className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentUser.phone} onChange={e => setCurrentUser({ ...currentUser, phone: e.target.value })} placeholder="(21) 99999-9999" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">E-mail (Login)</label>
-                <input className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentUser.email} onChange={e => setCurrentUser({ ...currentUser, email: e.target.value })} placeholder="email@daticopy.com.br" />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-blue-600 uppercase ml-1 tracking-widest">Senha de Acesso</label>
-                <input type="password" className="w-full p-3.5 bg-blue-50/30 border border-blue-100 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentUser.password} onChange={e => setCurrentUser({ ...currentUser, password: e.target.value })} placeholder="••••••••" />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-1 tracking-widest">Nível de Permissão</label>
-                <select className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-700 focus:ring-4 focus:ring-blue-100 outline-none transition-all appearance-none cursor-pointer" value={currentUser.role} onChange={e => setCurrentUser({ ...currentUser, role: e.target.value as UserRole })}>
-                  <option value={UserRole.SELLER}>Vendedor (Acesso restrito)</option>
-                  <option value={UserRole.ADMIN}>Administrador (Acesso total)</option>
-                </select>
-              </div>
-
-              <button onClick={handleSaveUser} className="w-full bg-blue-600 text-white p-4 rounded-[20px] font-black hover:bg-blue-700 transition-all mt-6 shadow-xl shadow-blue-100 uppercase text-xs tracking-widest flex items-center justify-center gap-2">
-                <Save size={18} /> Salvar Dados do Usuário
+            <h3 className="text-xl font-black text-slate-800 mb-2">Sessão expirando</h3>
+            <p className="text-slate-500 text-sm mb-6">Você ficará desconectado em <strong>2 minutos</strong> por inatividade.</p>
+            <div className="flex gap-3">
+              <button onClick={doLogout} className="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 hover:bg-slate-50 transition text-sm">
+                Sair agora
+              </button>
+              <button onClick={resetInactivity} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition text-sm">
+                Continuar
               </button>
             </div>
           </div>
         </div>
       )}
-      {/* MODAL RESET DE SENHA */}
-      {resetPasswordUserId && (() => {
-        const targetUser = users.find(u => u.id === resetPasswordUserId);
-        return (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-              <div className="px-8 py-6 border-b flex justify-between items-center bg-amber-50/50">
-                <div className="flex items-center gap-2">
-                  <Lock size={18} className="text-amber-500" />
-                  <h3 className="font-black text-slate-800 text-sm">Resetar Senha</h3>
-                </div>
-                <button onClick={() => setResetPasswordUserId(null)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-xl shadow-sm transition"><X size={18} /></button>
-              </div>
-              <div className="p-8 space-y-4">
-                <div className="bg-slate-50 rounded-2xl p-4">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Usuário</p>
-                  <p className="font-bold text-slate-800">{targetUser?.name}</p>
-                  <p className="text-xs text-slate-400">{targetUser?.email}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">Nova Senha</label>
-                  <input
-                    type="password"
-                    className="w-full p-3.5 bg-amber-50/30 border border-amber-100 rounded-2xl font-bold focus:ring-4 focus:ring-amber-100 outline-none transition-all"
-                    placeholder="••••••••"
-                    value={newPassword}
-                    onChange={e => { setNewPassword(e.target.value); setResetError(''); }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
-                  <input
-                    type="password"
-                    className="w-full p-3.5 bg-amber-50/30 border border-amber-100 rounded-2xl font-bold focus:ring-4 focus:ring-amber-100 outline-none transition-all"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={e => { setConfirmPassword(e.target.value); setResetError(''); }}
-                  />
-                </div>
-                {resetError && (
-                  <p className="text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl">{resetError}</p>
-                )}
-                <button
-                  onClick={handleResetPassword}
-                  className="w-full bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-[20px] font-black transition-all shadow-lg shadow-amber-100 uppercase text-xs tracking-widest flex items-center justify-center gap-2 mt-2"
-                >
-                  <Lock size={16} /> Confirmar Reset de Senha
-                </button>
-              </div>
+
+      <AppLayout user={user} onLogout={handleLogout} notification={notification} />
+    </HashRouter>
+  );
+};
+
+// ─── Layout principal ─────────────────────────────────────────────────────────
+const AppLayout: React.FC<{ user: User; onLogout: () => void; notification: any }> = ({ user, onLogout, notification }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-slate-50">
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={() => setMobileOpen(false)} />
+      )}
+      <Sidebar user={user} onLogout={onLogout} collapsed={collapsed} mobileOpen={mobileOpen}
+        onToggleCollapse={() => setCollapsed(c => !c)} onCloseMobile={() => setMobileOpen(false)} />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 shrink-0 z-10">
+          <div className="flex items-center gap-3">
+            <button className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-500 transition" onClick={() => setMobileOpen(true)}>
+              <Menu size={22} />
+            </button>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-800 font-montserrat tracking-tight">Premium Pro</h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-semibold text-slate-700">{user.name}</p>
+              <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">{user.role}</p>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-100 text-sm">
+              {user.name.charAt(0)}
             </div>
           </div>
-        );
-      })()}
-
+        </header>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          {notification && (
+            <div className={`fixed top-4 right-4 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 ${notification.type === 'success' ? 'bg-white border-l-4 border-green-500' : 'bg-white border-l-4 border-red-500'}`}>
+              {notification.type === 'success' ? <CheckCircle2 className="text-green-500" size={20} /> : <AlertCircle className="text-red-500" size={20} />}
+              <span className="font-semibold text-sm text-slate-800">{notification.message}</span>
+            </div>
+          )}
+          <Routes>
+            <Route path="/" element={<Dashboard user={user} />} />
+            <Route path="/proposals" element={<ProposalList user={user} />} />
+            <Route path="/proposals/new" element={<ProposalEditor user={user} />} />
+            <Route path="/proposals/edit/:id" element={<ProposalEditor user={user} />} />
+            <Route path="/customers" element={<CustomerList user={user} />} />
+            <Route path="/equipment" element={<EquipmentList user={user} />} />
+            <Route path="/kanban" element={<KanbanBoard user={user} />} />
+            <Route path="/admin" element={user.role === UserRole.ADMIN ? <AdminPanel /> : <Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
 };
 
-const ImageBox: React.FC<{
-  title: string;
-  description: string;
-  value: string;
-  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onClear: () => void;
-}> = ({ title, description, value, onUpload, onClear }) => (
-  <div className="flex flex-col gap-3">
-    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
-    <div className={`aspect-[3/4.2] rounded-3xl border-2 border-dashed relative overflow-hidden transition-all ${value ? 'border-blue-500 bg-blue-50 shadow-inner' : 'border-slate-200 bg-slate-50 hover:border-blue-300'}`}>
-      {value ? (
-        <>
-          <img src={value} className="w-full h-full object-cover" alt={title} />
-          <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-            <button onClick={onClear} className="p-3 bg-red-500 text-white rounded-2xl shadow-xl hover:bg-red-600 transition"><Trash2 size={24} /></button>
-          </div>
-        </>
-      ) : (
-        <label className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer p-6 text-center">
-          <div className="p-4 bg-white rounded-2xl shadow-sm mb-4"><Upload className="text-blue-500" size={32} /></div>
-          <p className="text-[11px] font-black text-slate-800 uppercase leading-tight mb-1">Upload PNG</p>
-          <input type="file" className="hidden" accept="image/png" onChange={onUpload} />
-        </label>
-      )}
-    </div>
-  </div>
-);
+// ─── Sidebar retrátil ─────────────────────────────────────────────────────────
+interface SidebarProps {
+  user: User; onLogout: () => void;
+  collapsed: boolean; mobileOpen: boolean;
+  onToggleCollapse: () => void; onCloseMobile: () => void;
+}
+const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, collapsed, mobileOpen, onToggleCollapse, onCloseMobile }) => {
+  const location = useLocation();
+  const menuItems = [
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+    { label: 'Mural Kanban', icon: Kanban, path: '/kanban' },
+    { label: 'Propostas', icon: FileText, path: '/proposals' },
+    { label: 'Clientes', icon: Users, path: '/customers' },
+    { label: 'Equipamentos', icon: Printer, path: '/equipment' },
+  ];
+  if (user.role === UserRole.ADMIN) menuItems.push({ label: 'Configurações', icon: Settings, path: '/admin' });
+  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
-export default AdminPanel;
+  return (
+    <aside className={[
+      'fixed lg:relative inset-y-0 left-0 z-40 flex flex-col bg-slate-900 text-slate-300 transition-all duration-300 ease-in-out h-full shrink-0',
+      mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+      collapsed ? 'w-20' : 'w-64',
+    ].join(' ')}>
+      <div className={`flex items-center h-16 border-b border-slate-800/60 px-4 shrink-0 ${collapsed ? 'justify-center' : 'justify-between'}`}>
+        {!collapsed && (
+          <div className="flex items-center gap-2 text-white min-w-0">
+            <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg shrink-0"><BarChart3 size={16} /></div>
+            <span className="text-lg font-bold font-montserrat tracking-tighter uppercase truncate">Premium</span>
+          </div>
+        )}
+        {collapsed && <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center shadow-lg"><BarChart3 size={16} /></div>}
+        <button onClick={onToggleCollapse} className="hidden lg:flex p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition shrink-0" title={collapsed ? 'Expandir' : 'Retrair'}>
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+        <button onClick={onCloseMobile} className="lg:hidden p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition">
+          <X size={18} />
+        </button>
+      </div>
+
+      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+        {menuItems.map(item => {
+          const active = isActive(item.path);
+          return (
+            <Link key={item.path} to={item.path} title={collapsed ? item.label : undefined}
+              className={['flex items-center gap-3 rounded-xl transition-all group relative', collapsed ? 'px-0 py-3 justify-center' : 'px-4 py-3', active ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' : 'hover:bg-slate-800 hover:text-white text-slate-400'].join(' ')}>
+              <item.icon size={20} className={active ? 'text-white' : 'group-hover:text-blue-400 transition-colors'} />
+              {!collapsed && <span className="font-semibold text-sm truncate">{item.label}</span>}
+              {collapsed && (
+                <div className="absolute left-full ml-3 px-2 py-1 bg-slate-700 text-white text-xs font-semibold rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl">{item.label}</div>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className={`border-t border-slate-800/50 p-3 shrink-0 ${collapsed ? 'flex flex-col items-center gap-2' : ''}`}>
+        {!collapsed && (
+          <div className="flex items-center gap-3 px-3 py-2 mb-1">
+            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-xs shrink-0">{user.name.charAt(0)}</div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white truncate">{user.name}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider truncate">{user.role}</p>
+            </div>
+          </div>
+        )}
+        <button onClick={onLogout} title={collapsed ? 'Sair' : undefined}
+          className={['flex items-center gap-3 rounded-xl hover:bg-red-900/20 hover:text-red-400 transition-all text-slate-400', collapsed ? 'p-3 justify-center w-full' : 'px-4 py-3 w-full'].join(' ')}>
+          <LogOut size={18} />
+          {!collapsed && <span className="font-bold text-sm">Sair</span>}
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: any }> = ({ onLogin, notification }) => {
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div className="p-10 text-center bg-gradient-to-br from-blue-700 to-indigo-900 text-white relative overflow-hidden">
+          <div className="absolute inset-0 dot-pattern opacity-10"></div>
+          <h2 className="text-3xl font-bold font-montserrat mb-2 relative z-10">DATY Propostas</h2>
+          <p className="text-blue-100 opacity-80 relative z-10">Sistema de Propostas Comerciais</p>
+        </div>
+        <div className="p-10">
+          <form onSubmit={(e) => { e.preventDefault(); onLogin(email, pass); }}>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Corporativo</label>
+                <input type="email" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="voce@empresa.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Senha de Acesso</label>
+                <input type="password" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} required />
+              </div>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3">
+                <LogIn size={20} /> Entrar no Sistema
+              </button>
+            </div>
+          </form>
+          {notification && (
+            <div className={`mt-4 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold ${notification.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+              {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              {notification.message}
+            </div>
+          )}
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+            <p className="text-slate-400 text-[10px] uppercase tracking-widest">Premium Pro Proposals © 2024</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
