@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, AlertCircle, Star } from 'lucide-react';
+import { Trash2, AlertCircle, Star, Search, X } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Proposal, PricingModel, OutsourcingSubtype, ProposalStatus, ProposalItem, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
@@ -14,6 +14,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [condSearch, setCondSearch] = useState('');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -50,7 +51,6 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
       setCustomers(c);
       setEquipments(e);
       setMasterData(md);
-
       if (id) {
         const existing = proposals.find(p => p.id === id);
         if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [] });
@@ -72,31 +72,21 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     load();
   }, [id, user]);
 
-  // Cálculo de totais
   useEffect(() => {
     let total = 0;
-    if (formData.pricingModel === PricingModel.VENDA) {
+    if (formData.pricingModel === PricingModel.VENDA)
       total = formData.items.reduce((acc, i) => acc + ((i.unitValue || 0) * i.quantity), 0);
-    } else if (formData.pricingModel === PricingModel.OUTSOURCING) {
+    else if (formData.pricingModel === PricingModel.OUTSOURCING)
       total = formData.items.reduce((acc, i) => acc + ((i.monthlyValue || 0) * i.quantity), 0);
-    }
     setFormData(prev => ({ ...prev, totalValue: total }));
   }, [formData.items, formData.pricingModel]);
 
   const newBlankItem = (isExtra = false): ProposalItem => ({
     equipmentId: isExtra ? '' : (equipments[0]?.id || ''),
-    quantity: 1,
-    unitValue: 0,
-    monthlyValue: 0,
-    monoFranchise: 0,
-    monoExcess: 0,
-    monoClickPrice: 0,
-    colorFranchise: 0,
-    colorExcess: 0,
-    colorClickPrice: 0,
-    itemNote: '',
-    isExtra,
-    extraDescription: '',
+    quantity: 1, unitValue: 0, monthlyValue: 0,
+    monoFranchise: 0, monoExcess: 0, monoClickPrice: 0,
+    colorFranchise: 0, colorExcess: 0, colorClickPrice: 0,
+    itemNote: '', isExtra, extraDescription: '',
   });
 
   const updateItem = (index: number, updates: Partial<ProposalItem>) => {
@@ -104,9 +94,8 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     newItems[index] = { ...newItems[index], ...updates };
     setFormData(prev => ({ ...prev, items: newItems }));
   };
-
-  const removeItem = (index: number) =>
-    setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  const removeItem = (i: number) =>
+    setFormData(prev => ({ ...prev, items: prev.items.filter((_, x) => x !== i) }));
 
   const handleSave = async () => {
     if (!formData.customerId || !formData.title || formData.items.length === 0) {
@@ -129,6 +118,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     return null;
   };
   const totalLabel = getTotalLabel();
+
+  // Filtro de condições comerciais
+  const filteredConditions = masterData.commercialConditions.filter(c =>
+    c.condition.toLowerCase().includes(condSearch.toLowerCase())
+  );
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center font-black text-blue-600">CARREGANDO...</div>
@@ -196,9 +190,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     <Star size={11} /> ÍTEM EXTRA
                   </button>
                   <button onClick={() => setFormData(prev => ({ ...prev, items: [...prev.items, newBlankItem(false)] }))}
-                    className="bg-blue-600 text-white px-3 py-2 rounded-lg font-black text-[10px]">
-                    + ITEM
-                  </button>
+                    className="bg-blue-600 text-white px-3 py-2 rounded-lg font-black text-[10px]">+ ITEM</button>
                 </div>
               </div>
 
@@ -210,16 +202,12 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
 
               {formData.items.map((item, idx) => {
                 const eq = equipments.find(e => e.id === item.equipmentId);
-                // isColor: true se o equipamento suportar cor
                 const isColor = eq?.isColor || false;
                 const isOutsourcing = formData.pricingModel === PricingModel.OUTSOURCING;
                 const isVenda = formData.pricingModel === PricingModel.VENDA;
                 const isClique = formData.pricingModel === PricingModel.CLIQUE;
-                const subtotal = isVenda
-                  ? (item.unitValue || 0) * item.quantity
-                  : (item.monthlyValue || 0) * item.quantity;
+                const subtotal = isVenda ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity;
 
-                // ── ÍTEM EXTRA ──
                 if (item.isExtra) {
                   return (
                     <div key={idx} className="p-5 bg-amber-50 rounded-2xl border border-amber-200 relative">
@@ -238,18 +226,14 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           <input type="number" className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-amber-200" value={item.quantity} onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} />
                         </div>
                         <div className="sm:col-span-2">
-                          {isVenda && (
-                            <>
-                              <label className="text-[9px] font-black text-blue-600 uppercase">Valor Unitário (R$)</label>
-                              <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
-                            </>
-                          )}
-                          {(isOutsourcing || isClique) && (
-                            <>
-                              <label className="text-[9px] font-black text-amber-600 uppercase">Valor Mensal (R$)</label>
-                              <input type="number" className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                            </>
-                          )}
+                          {isVenda && (<>
+                            <label className="text-[9px] font-black text-blue-600 uppercase">Valor Unitário (R$)</label>
+                            <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
+                          </>)}
+                          {(isOutsourcing || isClique) && (<>
+                            <label className="text-[9px] font-black text-amber-600 uppercase">Valor Mensal (R$)</label>
+                            <input type="number" className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                          </>)}
                         </div>
                         <div className="sm:col-span-4">
                           <label className="text-[9px] font-black text-slate-400 uppercase">Observação (opcional)</label>
@@ -265,17 +249,13 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                   );
                 }
 
-                // ── ITEM NORMAL ──
                 return (
                   <div key={idx} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 relative">
                     <button onClick={() => removeItem(idx)} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={15} /></button>
-
-                    {/* Equipamento + Qtd */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
                       <div className="sm:col-span-3">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Hardware</label>
-                        <select className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.equipmentId}
-                          onChange={e => updateItem(idx, { equipmentId: e.target.value })}>
+                        <select className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.equipmentId} onChange={e => updateItem(idx, { equipmentId: e.target.value })}>
                           {equipments.map(e => <option key={e.id} value={e.id}>{e.brand} {e.model}</option>)}
                         </select>
                       </div>
@@ -285,10 +265,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                     </div>
 
-                    {/* Campos dinâmicos por modelo */}
                     <div className="border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                      {/* ─ VENDA ─ */}
                       {isVenda && (
                         <div className="sm:col-span-2">
                           <label className="text-[9px] font-black text-blue-600 uppercase">Preço Unitário de Venda (R$)</label>
@@ -296,85 +273,79 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                         </div>
                       )}
 
-                      {/* ─ OUTSOURCING ─ */}
-                      {isOutsourcing && (
-                        <>
-                          {/* Valor mensal */}
-                          <div className="sm:col-span-2">
-                            <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
-                            <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                          </div>
-
-                          {/* Mono */}
-                          <div className="p-3 bg-white rounded-xl border border-slate-100 space-y-2">
-                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Monocromático</p>
-                            <div>
-                              <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
-                              <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoFranchise || 0} onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} />
-                            </div>
-                            <div>
-                              <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                              <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                          </div>
-
-                          {/* Cor — só aparece se o equipamento suportar cor */}
-                          <div className={`p-3 rounded-xl border space-y-2 ${isColor ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100 opacity-40 pointer-events-none'}`}>
-                            <p className={`text-[9px] font-black uppercase tracking-widest ${isColor ? 'text-blue-500' : 'text-slate-400'}`}>
-                              Colorido {!isColor && '(N/D neste equipamento)'}
-                            </p>
-                            <div>
-                              <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
-                              <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorFranchise || 0} onChange={e => updateItem(idx, { colorFranchise: parseInt(e.target.value) || 0 })} disabled={!isColor} />
-                            </div>
-                            <div>
-                              <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                              <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* ─ CLIQUE ─ */}
-                      {isClique && (
-                        <>
-                          <div className="sm:col-span-2">
-                            <label className="text-[9px] font-black text-emerald-600 uppercase">Valor de Gestão/Mensal (R$)</label>
-                            <input type="number" className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                      {isOutsourcing && (<>
+                        <div className="sm:col-span-2">
+                          <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
+                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        {/* P&B */}
+                        <div className="p-3 bg-white rounded-xl border border-slate-100 space-y-2">
+                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Monocromático</p>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
+                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoFranchise || 0} onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} />
                           </div>
                           <div>
-                            <label className="text-[9px] font-black text-slate-400 uppercase">P&B — R$/pág produzida</label>
-                            <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
                           </div>
-                          {isColor && (
-                            <div>
-                              <label className="text-[9px] font-black text-blue-500 uppercase">Cor — R$/pág produzida</label>
-                              <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
-                            </div>
-                          )}
-                        </>
-                      )}
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. P&B (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                          </div>
+                        </div>
+                        {/* Cor */}
+                        <div className={`p-3 rounded-xl border space-y-2 ${isColor ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100 opacity-40 pointer-events-none'}`}>
+                          <p className={`text-[9px] font-black uppercase tracking-widest ${isColor ? 'text-blue-500' : 'text-slate-400'}`}>
+                            Colorido {!isColor && '(N/D neste equipamento)'}
+                          </p>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
+                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorFranchise || 0} onChange={e => updateItem(idx, { colorFranchise: parseInt(e.target.value) || 0 })} disabled={!isColor} />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. Cor (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                          </div>
+                        </div>
+                      </>)}
 
-                      {/* Observação */}
+                      {isClique && (<>
+                        <div className="sm:col-span-2">
+                          <label className="text-[9px] font-black text-emerald-600 uppercase">Valor de Gestão/Mensal (R$)</label>
+                          <input type="number" className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-black text-slate-400 uppercase">Pág. Prod. P&B (R$/pág)</label>
+                          <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                        </div>
+                        {isColor && (
+                          <div>
+                            <label className="text-[9px] font-black text-blue-500 uppercase">Pág. Prod. Cor (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
+                          </div>
+                        )}
+                      </>)}
+
                       <div className="sm:col-span-2">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Observação do Ítem (opcional)</label>
                         <textarea rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm resize-none" placeholder="Texto descritivo para aparecer na proposta..." value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
                       </div>
                     </div>
 
-                    {/* Subtotal */}
                     {!isClique && (
                       <div className="flex justify-end mt-2">
-                        <span className="text-[10px] font-black text-slate-400">
-                          Subtotal: <span className="text-slate-700 text-sm">{fmt(subtotal)}</span>
-                        </span>
+                        <span className="text-[10px] font-black text-slate-400">Subtotal: <span className="text-slate-700 text-sm">{fmt(subtotal)}</span></span>
                       </div>
                     )}
                   </div>
                 );
               })}
 
-              {/* Barra de total no step 2 */}
               {formData.items.length > 0 && (
                 totalLabel
                   ? <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center">
@@ -409,24 +380,20 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     <h3 className="text-2xl font-black text-emerald-200">{formData.pricingModel}</h3>
                     <p className="text-[10px] text-emerald-400 mt-1">Cobrança por clique — sem valor total fixo</p>
                   </div>
-                  <div className="bg-white/10 p-4 rounded-xl text-right">
+                  <div className="bg-white/10 p-4 rounded-xl">
                     <p className="text-[9px] font-black uppercase text-slate-300">{formData.items.length} ítens</p>
                   </div>
                 </div>
               )}
 
-              {/* Resumo dos ítens */}
+              {/* Resumo ítens */}
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-400 block mb-2">Resumo dos Ítens</label>
                 <div className="space-y-2">
                   {formData.items.map((item, idx) => {
                     const eq = equipments.find(e => e.id === item.equipmentId);
-                    const label = item.isExtra
-                      ? (item.extraDescription || 'Ítem Extra')
-                      : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
-                    const sub = formData.pricingModel === PricingModel.VENDA
-                      ? (item.unitValue || 0) * item.quantity
-                      : (item.monthlyValue || 0) * item.quantity;
+                    const label = item.isExtra ? (item.extraDescription || 'Ítem Extra') : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
+                    const sub = formData.pricingModel === PricingModel.VENDA ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity;
                     return (
                       <div key={idx} className={`flex justify-between items-center p-3 rounded-xl text-sm ${item.isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
                         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -443,11 +410,39 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
-              {/* Condições comerciais */}
+              {/* ── Condições Comerciais com filtro ── */}
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase text-slate-400">Condições Comerciais</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-4 border-2 border-slate-50 rounded-2xl">
-                  {masterData.commercialConditions.map(c => {
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase text-slate-400">Condições Comerciais</label>
+                  {(formData.selectedConditions?.length ?? 0) > 0 && (
+                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">
+                      {formData.selectedConditions?.length} selecionada(s)
+                    </span>
+                  )}
+                </div>
+
+                {/* Campo de busca */}
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Buscar condição..."
+                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                    value={condSearch}
+                    onChange={e => setCondSearch(e.target.value)}
+                  />
+                  {condSearch && (
+                    <button onClick={() => setCondSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-3 border-2 border-slate-50 rounded-2xl">
+                  {filteredConditions.length === 0 && (
+                    <div className="col-span-2 text-center py-4 text-slate-300 text-xs">Nenhuma condição encontrada.</div>
+                  )}
+                  {filteredConditions.map(c => {
                     const sel = formData.selectedConditions?.includes(c.id);
                     return (
                       <button key={c.id}
