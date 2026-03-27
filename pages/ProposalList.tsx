@@ -405,7 +405,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
                   {/* ── RESUMO POR ÍTEM ── */}
                   <div className="p-6 px-8">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
+                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
                     <div className="space-y-2">
                       {activeProp.items.map((item, idx) => {
                         const eq = equipments.find(e => e.id === item.equipmentId);
