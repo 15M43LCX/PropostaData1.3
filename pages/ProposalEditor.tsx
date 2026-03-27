@@ -287,11 +287,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.01" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. P&B (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.01" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
                           </div>
                         </div>
                         {/* Cor */}
@@ -305,11 +305,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                            <input type="number" step="0.01" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                            <input type="number" step="0.01" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
                           </div>
                         </div>
                       </>)}
@@ -321,12 +321,12 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                         </div>
                         <div>
                           <label className="text-[9px] font-black text-slate-400 uppercase">Pág. Prod. P&B (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                          <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
                         </div>
                         {isColor && (
                           <div>
                             <label className="text-[9px] font-black text-blue-500 uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.01" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
                           </div>
                         )}
                       </>)}
