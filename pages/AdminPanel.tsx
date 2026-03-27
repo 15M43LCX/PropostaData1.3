@@ -20,6 +20,10 @@ const AdminPanel: React.FC = () => {
     roleInCompany: '',
     password: ''
   });
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
   const [newInputs, setNewInputs] = useState({
     commercialConditions: '',
     solutionTitle: '',
@@ -117,6 +121,31 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleOpenResetPassword = (userId: string) => {
+    setResetPasswordUserId(userId);
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetError('');
+  };
+
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.length < 4) {
+      setResetError('A senha deve ter pelo menos 4 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError('As senhas não coincidem.');
+      return;
+    }
+    const userToUpdate = users.find(u => u.id === resetPasswordUserId);
+    if (!userToUpdate) return;
+    await storage.saveUser({ ...userToUpdate, password: newPassword });
+    setUsers(await storage.getUsers());
+    setResetPasswordUserId(null);
+    setSaveStatus(true);
+    setTimeout(() => setSaveStatus(false), 2000);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-10 pb-20 animate-in fade-in duration-500">
 
@@ -157,10 +186,12 @@ const AdminPanel: React.FC = () => {
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">{u.name}</h4>
                 <p className="text-[10px] text-slate-400 uppercase tracking-tighter">{u.roleInCompany || 'Vendedor'} • {u.role}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">{u.email}</p>
               </div>
               <div className="flex gap-1">
-                <button onClick={() => { setCurrentUser(u); setIsUserModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600"><Edit size={14} /></button>
-                <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+                <button onClick={() => handleOpenResetPassword(u.id)} className="p-2 text-slate-400 hover:text-amber-500 transition" title="Resetar Senha"><Lock size={14} /></button>
+                <button onClick={() => { setCurrentUser(u); setIsUserModalOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition" title="Editar Usuário"><Edit size={14} /></button>
+                <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-500 transition" title="Excluir Usuário"><Trash2 size={14} /></button>
               </div>
             </div>
           ))}
@@ -336,6 +367,60 @@ const AdminPanel: React.FC = () => {
           </div>
         </div>
       )}
+      {/* MODAL RESET DE SENHA */}
+      {resetPasswordUserId && (() => {
+        const targetUser = users.find(u => u.id === resetPasswordUserId);
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-[32px] w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+              <div className="px-8 py-6 border-b flex justify-between items-center bg-amber-50/50">
+                <div className="flex items-center gap-2">
+                  <Lock size={18} className="text-amber-500" />
+                  <h3 className="font-black text-slate-800 text-sm">Resetar Senha</h3>
+                </div>
+                <button onClick={() => setResetPasswordUserId(null)} className="text-slate-400 hover:text-slate-600 bg-white p-2 rounded-xl shadow-sm transition"><X size={18} /></button>
+              </div>
+              <div className="p-8 space-y-4">
+                <div className="bg-slate-50 rounded-2xl p-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Usuário</p>
+                  <p className="font-bold text-slate-800">{targetUser?.name}</p>
+                  <p className="text-xs text-slate-400">{targetUser?.email}</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">Nova Senha</label>
+                  <input
+                    type="password"
+                    className="w-full p-3.5 bg-amber-50/30 border border-amber-100 rounded-2xl font-bold focus:ring-4 focus:ring-amber-100 outline-none transition-all"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={e => { setNewPassword(e.target.value); setResetError(''); }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">Confirmar Nova Senha</label>
+                  <input
+                    type="password"
+                    className="w-full p-3.5 bg-amber-50/30 border border-amber-100 rounded-2xl font-bold focus:ring-4 focus:ring-amber-100 outline-none transition-all"
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={e => { setConfirmPassword(e.target.value); setResetError(''); }}
+                  />
+                </div>
+                {resetError && (
+                  <p className="text-xs text-red-600 font-bold bg-red-50 p-3 rounded-xl">{resetError}</p>
+                )}
+                <button
+                  onClick={handleResetPassword}
+                  className="w-full bg-amber-500 hover:bg-amber-600 text-white p-4 rounded-[20px] font-black transition-all shadow-lg shadow-amber-100 uppercase text-xs tracking-widest flex items-center justify-center gap-2 mt-2"
+                >
+                  <Lock size={16} /> Confirmar Reset de Senha
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 };
