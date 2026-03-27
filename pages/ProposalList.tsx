@@ -258,7 +258,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                           {getCustomer(activeProp.customerId)?.companyName}
                         </h1>
                         <div className="flex items-center justify-center gap-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-t border-slate-100 mt-3 pt-3">
-                          <UserIcon size={12} className="text-blue-500" />
+                          <UserIcon size={12} className="text-blue-600" />
                           <span>A/C: {getCustomer(activeProp.customerId)?.contactName}</span>
                         </div>
                       </div>
