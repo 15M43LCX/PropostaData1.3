@@ -1,11 +1,14 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, PlusCircle, Edit, Download, Loader2, Printer, Copy, Trash2, User as UserIcon, Star } from 'lucide-react';
+import { FileText, PlusCircle, Edit, Download, Loader2, Printer, Copy, Trash2, User as UserIcon, Star, Filter, X, ChevronDown, Search } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Proposal, ProposalStatus, PricingModel, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+interface PLFilters { search: string; sellerId: string; customerId: string; pricingModel: string; status: string; }
+const EMPTY: PLFilters = { search: '', sellerId: '', customerId: '', pricingModel: '', status: '' };
 
 const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   const navigate = useNavigate();
@@ -19,6 +22,8 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [activeProp, setActiveProp] = useState<Proposal | null>(null);
+  const [filters, setFilters] = useState<PLFilters>(EMPTY);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -56,15 +61,9 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     if (parts.length !== 3) return dateStr;
     const [day, month, year] = parts;
     const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-    
-    // Agora o texto sairá com cor cinza quase preta (slate-750) e em negrito máximo (font-black)
-    return (
-      <span className="text-slate-600 font-black">
-        Rio de Janeiro, {parseInt(day)} de {months[parseInt(month) - 1]} de {year}
-      </span>
-    );
+    return `Rio de Janeiro, ${parseInt(day)} de ${months[parseInt(month) - 1]} de ${year}`;
   };
-  // Label do total conforme modelo — Clique não tem total
+
   const getTotalLabel = (model: PricingModel): string | null => {
     if (model === PricingModel.VENDA) return 'Valor Total';
     if (model === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
@@ -93,7 +92,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   const generatePDF = async (prop: Proposal) => {
     setGenerating(prop.id);
     setActiveProp(prop);
-
     setTimeout(async () => {
       if (!pdfRef.current) return;
       try {
@@ -131,6 +129,26 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     };
   };
 
+  // ── Filtro aplicado ──
+  const setF = (k: keyof PLFilters, v: string) => setFilters(prev => ({ ...prev, [k]: v }));
+  const activeCount = Object.values(filters).filter(Boolean).length;
+
+  const filtered = useMemo(() => proposals.filter(p => {
+    const cust = getCustomer(p.customerId);
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const match = (cust?.companyName || '').toLowerCase().includes(q)
+        || p.code.toLowerCase().includes(q)
+        || p.title.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (filters.sellerId && p.sellerId !== filters.sellerId) return false;
+    if (filters.customerId && p.customerId !== filters.customerId) return false;
+    if (filters.pricingModel && p.pricingModel !== filters.pricingModel) return false;
+    if (filters.status && p.status !== filters.status) return false;
+    return true;
+  }), [proposals, filters, customers]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
@@ -141,63 +159,153 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 font-montserrat tracking-tight">Vendas e Propostas</h2>
-          <p className="text-slate-500 font-medium">Controle total sobre seus documentos comerciais.</p>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-800 font-montserrat tracking-tight">Vendas e Propostas</h2>
+          <p className="text-slate-500 font-medium text-sm">Controle total sobre seus documentos comerciais.</p>
         </div>
-        <button onClick={() => navigate('/proposals/new')} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-10 rounded-2xl flex items-center gap-3 transition shadow-xl shadow-blue-100 uppercase text-xs tracking-widest">
-          <PlusCircle size={20} /> Novo Projeto
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setFilterOpen(o => !o)}
+            className={`relative flex items-center gap-2 font-bold py-2.5 px-4 rounded-xl text-sm transition border shadow-sm ${filterOpen || activeCount > 0 ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            <Filter size={15} /> Filtros
+            {activeCount > 0 && <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{activeCount}</span>}
+          </button>
+          <button onClick={() => navigate('/proposals/new')} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-5 rounded-xl flex items-center gap-2 transition shadow-xl shadow-blue-100 text-sm">
+            <PlusCircle size={18} /> Novo Projeto
+          </button>
+        </div>
       </div>
 
-      {proposals.length === 0 ? (
+      {/* Painel de filtros */}
+      {filterOpen && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-slate-700 text-sm uppercase tracking-wider flex items-center gap-2"><Filter size={13} /> Filtrar Propostas</h3>
+            {activeCount > 0 && (
+              <button onClick={() => setFilters(EMPTY)} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider flex items-center gap-1">
+                <X size={11} /> Limpar
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Busca */}
+            <div className="lg:col-span-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Busca</label>
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input type="text" placeholder="Código, empresa, título..." className="w-full pl-8 pr-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.search} onChange={e => setF('search', e.target.value)} />
+              </div>
+            </div>
+            {/* Consultor (só ADMIN) */}
+            {user.role === 'ADMIN' && (
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Consultor</label>
+                <div className="relative">
+                  <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.sellerId} onChange={e => setF('sellerId', e.target.value)}>
+                    <option value="">Todos</option>
+                    {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            )}
+            {/* Cliente */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cliente</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.customerId} onChange={e => setF('customerId', e.target.value)}>
+                  <option value="">Todos</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            {/* Modelo */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Modelo</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.pricingModel} onChange={e => setF('pricingModel', e.target.value)}>
+                  <option value="">Todos</option>
+                  {Object.values(PricingModel).map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            {/* Status */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.status} onChange={e => setF('status', e.target.value)}>
+                  <option value="">Todos</option>
+                  {Object.values(ProposalStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+          {/* Chips */}
+          {activeCount > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+              {filters.search && <Chip label={`"${filters.search}"`} onRemove={() => setF('search', '')} />}
+              {filters.sellerId && <Chip label={`Consultor: ${allUsers.find(u => u.id === filters.sellerId)?.name || '—'}`} onRemove={() => setF('sellerId', '')} />}
+              {filters.customerId && <Chip label={`Cliente: ${customers.find(c => c.id === filters.customerId)?.companyName || '—'}`} onRemove={() => setF('customerId', '')} />}
+              {filters.pricingModel && <Chip label={`Modelo: ${filters.pricingModel}`} onRemove={() => setF('pricingModel', '')} />}
+              {filters.status && <Chip label={`Status: ${filters.status}`} onRemove={() => setF('status', '')} />}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tabela */}
+      {filtered.length === 0 ? (
         <div className="text-center py-20 text-slate-300 bg-white rounded-[40px] border border-slate-100">
           <FileText className="mx-auto mb-4 opacity-20" size={56} />
-          <p className="text-sm font-medium">Nenhuma proposta criada ainda.</p>
+          <p className="text-sm font-medium">{proposals.length === 0 ? 'Nenhuma proposta criada ainda.' : 'Nenhuma proposta com esses filtros.'}</p>
         </div>
       ) : (
         <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="flex items-center justify-between px-8 py-4 border-b border-slate-50">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filtered.length} proposta(s){activeCount > 0 ? ' filtrada(s)' : ''}</span>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/50 border-b border-slate-100">
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa / Negócio</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Investimento</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa / Negócio</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Investimento</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {proposals.map(p => {
+                {filtered.map(p => {
                   const customer = getCustomer(p.customerId);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-all group">
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-5">
                         <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">{p.code}</span>
                       </td>
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-5">
                         <p className="text-sm font-black text-slate-800">{customer?.companyName || 'N/A'}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{p.title}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.title}</p>
                       </td>
-                      <td className="px-8 py-6">
+                      <td className="px-6 py-5">
                         <p className="text-sm font-black text-slate-700">
-                          {p.pricingModel === PricingModel.CLIQUE
-                            ? '— Por Clique'
-                            : `R$ ${p.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          {p.pricingModel === PricingModel.CLIQUE ? '— Por Clique' : `R$ ${p.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{p.pricingModel}</p>
                       </td>
-                      <td className="px-8 py-6">
-                        <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${p.status === ProposalStatus.FECHADO ? 'bg-emerald-100 text-emerald-700' : p.status === ProposalStatus.ABERTO ? 'bg-blue-100 text-blue-700' : p.status === ProposalStatus.EM_NEGOCIACAO ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{p.status}</span>
+                      <td className="px-6 py-5">
+                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${p.status === ProposalStatus.FECHADO ? 'bg-emerald-100 text-emerald-700' : p.status === ProposalStatus.ABERTO ? 'bg-blue-100 text-blue-700' : p.status === ProposalStatus.EM_NEGOCIACAO ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{p.status}</span>
                       </td>
-                      <td className="px-8 py-6 text-right space-x-2">
-                        <button onClick={() => handleDuplicate(p)} className="p-3 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Duplicar Proposta"><Copy size={18} /></button>
-                        <button onClick={() => navigate(`/proposals/edit/${p.id}`)} className="p-3 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Editar Proposta"><Edit size={18} /></button>
-                        <button onClick={() => generatePDF(p)} disabled={generating === p.id} className={`p-3 transition rounded-xl ${generating === p.id ? 'text-blue-600' : 'text-slate-300 hover:text-emerald-600 hover:bg-white hover:shadow-md'}`} title="Baixar PDF">{generating === p.id ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}</button>
-                        <button onClick={() => handleDelete(p.id)} className="p-3 text-slate-300 hover:text-red-500 transition rounded-xl hover:bg-white hover:shadow-md" title="Excluir Proposta"><Trash2 size={18} /></button>
+                      <td className="px-6 py-5 text-right space-x-1">
+                        <button onClick={() => handleDuplicate(p)} className="p-2.5 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Duplicar"><Copy size={16} /></button>
+                        <button onClick={() => navigate(`/proposals/edit/${p.id}`)} className="p-2.5 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Editar"><Edit size={16} /></button>
+                        <button onClick={() => generatePDF(p)} disabled={generating === p.id} className={`p-2.5 transition rounded-xl ${generating === p.id ? 'text-blue-600' : 'text-slate-300 hover:text-emerald-600 hover:bg-white hover:shadow-md'}`} title="Baixar PDF">{generating === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}</button>
+                        <button onClick={() => handleDelete(p.id)} className="p-2.5 text-slate-300 hover:text-red-500 transition rounded-xl hover:bg-white hover:shadow-md" title="Excluir"><Trash2 size={16} /></button>
                       </td>
                     </tr>
                   );
@@ -207,11 +315,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
           </div>
         </div>
       )}
-
-      {/* ═══════════════════════════════════════════════
-          TEMPLATE DO PDF — OCULTO NA TELA, VISÍVEL APENAS NA GERAÇÃO
-      ═══════════════════════════════════════════════ */}
-      {activeProp && (
         <div className="pdf-template" ref={pdfRef}>
 
           {/* PÁGINA 1: CAPA */}
@@ -258,7 +361,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                           {getCustomer(activeProp.customerId)?.companyName}
                         </h1>
                         <div className="flex items-center justify-center gap-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-t border-slate-100 mt-3 pt-3">
-                          <UserIcon size={12} className="text-blue-600" />
+                          <UserIcon size={12} className="text-blue-500" />
                           <span>A/C: {getCustomer(activeProp.customerId)?.contactName}</span>
                         </div>
                       </div>
@@ -410,7 +513,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
                   {/* ── RESUMO POR ÍTEM ── */}
                   <div className="p-6 px-8">
-                    <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
                     <div className="space-y-2">
                       {activeProp.items.map((item, idx) => {
                         const eq = equipments.find(e => e.id === item.equipmentId);
@@ -565,5 +668,12 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     </div>
   );
 };
+
+const Chip: React.FC<{ label: string; onRemove: () => void }> = ({ label, onRemove }) => (
+  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black rounded-full uppercase tracking-wider">
+    {label}
+    <button onClick={onRemove} className="hover:text-red-500 transition"><X size={10} /></button>
+  </span>
+);
 
 export default ProposalList;
