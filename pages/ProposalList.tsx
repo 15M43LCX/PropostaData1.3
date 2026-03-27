@@ -59,7 +59,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     
     // Agora o texto sairá com cor cinza quase preta (slate-750) e em negrito máximo (font-black)
     return (
-      <span className="text-slate-950 font-black">
+      <span className="text-slate-750 font-black">
         Rio de Janeiro, {parseInt(day)} de {months[parseInt(month) - 1]} de {year}
       </span>
     );
