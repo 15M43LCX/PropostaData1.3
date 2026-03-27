@@ -57,7 +57,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     const [day, month, year] = parts;
     const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
     
-    // Agora o texto sairá com cor cinza quase preta (slate-950) e em negrito máximo (font-black)
+    // Agora o texto sairá com cor cinza quase preta (slate-750) e em negrito máximo (font-black)
     return (
       <span className="text-slate-950 font-black">
         Rio de Janeiro, {parseInt(day)} de {months[parseInt(month) - 1]} de {year}
