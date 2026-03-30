@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, AlertCircle, Star, Search, X } from 'lucide-react';
+import { Trash2, AlertCircle, Star, Search, X, Printer } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Proposal, PricingModel, OutsourcingSubtype, ProposalStatus, ProposalItem, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
@@ -15,6 +15,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [condSearch, setCondSearch] = useState('');
+  const [eqSearch, setEqSearch] = useState('');
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -124,6 +125,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     c.condition.toLowerCase().includes(condSearch.toLowerCase())
   );
 
+  // Filtro de equipamentos (Step 2)
+  const filteredEquipments = equipments.filter(e =>
+    `${e.brand} ${e.model} ${e.type} ${e.title}`.toLowerCase().includes(eqSearch.toLowerCase())
+  );
+
   if (loading) return (
     <div className="flex h-screen items-center justify-center font-black text-blue-600">CARREGANDO...</div>
   );
@@ -194,6 +200,53 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
+              {/* Busca de equipamentos */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Filtrar equipamentos por marca, modelo ou tipo..."
+                  className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                  value={eqSearch}
+                  onChange={e => setEqSearch(e.target.value)}
+                />
+                {eqSearch && (
+                  <button onClick={() => setEqSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X size={13} />
+                  </button>
+                )}
+                {eqSearch && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
+                    {filteredEquipments.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-4">Nenhum equipamento encontrado.</p>
+                    ) : (
+                      filteredEquipments.map(eq => (
+                        <button
+                          key={eq.id}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              items: [...prev.items, { ...newBlankItem(false), equipmentId: eq.id }]
+                            }));
+                            setEqSearch('');
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-left transition"
+                        >
+                          {eq.imageUrl
+                            ? <img src={eq.imageUrl} className="w-8 h-8 object-contain rounded-lg bg-slate-50 border border-slate-100" alt={eq.model} />
+                            : <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Printer size={14} className="text-slate-400" /></div>
+                          }
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-800 truncate">{eq.brand} {eq.model}</p>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-wide">{eq.type}{eq.isColor ? ' · Colorido' : ' · P&B'}</p>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
               {formData.items.length === 0 && (
                 <div className="text-center py-12 text-slate-300">
                   <p className="text-sm">Adicione equipamentos ou ítens extras acima.</p>
@@ -256,7 +309,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       <div className="sm:col-span-3">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Hardware</label>
                         <select className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.equipmentId} onChange={e => updateItem(idx, { equipmentId: e.target.value })}>
-                          {equipments.map(e => <option key={e.id} value={e.id}>{e.brand} {e.model}</option>)}
+                          {(eqSearch ? filteredEquipments : equipments).map(e => <option key={e.id} value={e.id}>{e.brand} {e.model}{e.isColor ? ' (Cor)' : ' (P&B)'}</option>)}
                         </select>
                       </div>
                       <div>
@@ -287,11 +340,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.01" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. P&B (R$/pág)</label>
-                            <input type="number" step="0.01" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
                           </div>
                         </div>
                         {/* Cor */}
@@ -305,11 +358,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.01" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
                           </div>
                           <div>
                             <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.01" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
+                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
                           </div>
                         </div>
                       </>)}
@@ -321,12 +374,12 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                         </div>
                         <div>
                           <label className="text-[9px] font-black text-slate-400 uppercase">Pág. Prod. P&B (R$/pág)</label>
-                          <input type="number" step="0.01" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
+                          <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
                         </div>
                         {isColor && (
                           <div>
                             <label className="text-[9px] font-black text-blue-500 uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.01" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
+                            <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
                           </div>
                         )}
                       </>)}
