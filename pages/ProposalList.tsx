@@ -95,14 +95,21 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     setTimeout(async () => {
       if (!pdfRef.current) return;
       try {
-        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdf = new jsPDF('p', 'mm', 'a4', true); // compress=true
         const pages = pdfRef.current.children;
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
-          const canvas = await html2canvas(page, { scale: 2, useCORS: true, logging: false, windowWidth: 794 });
-          const imgData = canvas.toDataURL('image/png');
+          const canvas = await html2canvas(page, {
+            scale: 1.5,
+            useCORS: true,
+            logging: false,
+            windowWidth: 794,
+            imageTimeout: 0,
+            backgroundColor: '#ffffff',
+          });
+          const imgData = canvas.toDataURL('image/jpeg', 0.75);
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
         }
         const cust = getCustomer(prop.customerId);
         pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
