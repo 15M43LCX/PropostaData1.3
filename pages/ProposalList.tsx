@@ -65,7 +65,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const getTotalLabel = (model: PricingModel): string | null => {
-    if (model === PricingModel.VENDA) return 'Valor Total';
+    // Venda: não exibe total consolidado (itens já mostram valor unitário individualmente)
     if (model === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
     return null;
   };
@@ -95,21 +95,33 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     setTimeout(async () => {
       if (!pdfRef.current) return;
       try {
-        const pdf = new jsPDF('p', 'mm', 'a4', true); // compress=true
+        const pdf = new jsPDF('p', 'mm', 'a4', true);
         const pages = pdfRef.current.children;
+        // A4 a 96dpi = 794x1123px — tamanho fixo de saída
+        const OUT_W = 794;
+        const OUT_H = 1123;
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
           const canvas = await html2canvas(page, {
-            scale: 1.5,
+            scale: 1,
             useCORS: true,
             logging: false,
             windowWidth: 794,
             imageTimeout: 0,
             backgroundColor: '#ffffff',
           });
-          const imgData = canvas.toDataURL('image/jpeg', 0.75);
+          // Redimensiona para tamanho fixo, independente do canvas original
+          const resized = document.createElement('canvas');
+          resized.width = OUT_W;
+          resized.height = OUT_H;
+          const ctx = resized.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, OUT_W, OUT_H);
+          ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+          // JPEG 0.60 — bom visual, arquivo leve (~1-3MB por página)
+          const imgData = resized.toDataURL('image/jpeg', 0.60);
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
         }
         const cust = getCustomer(prop.customerId);
         pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
@@ -301,7 +313,11 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                       </td>
                       <td className="px-6 py-5">
                         <p className="text-sm font-black text-slate-700">
-                          {p.pricingModel === PricingModel.CLIQUE ? '— Por Clique' : `R$ ${p.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          {p.pricingModel === PricingModel.CLIQUE
+                            ? '— Por Clique'
+                            : p.pricingModel === PricingModel.VENDA
+                              ? '— Ver Itens'
+                              : `R$ ${p.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
                         </p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{p.pricingModel}</p>
                       </td>
