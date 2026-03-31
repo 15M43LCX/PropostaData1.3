@@ -119,7 +119,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
           ctx.fillRect(0, 0, OUT_W, OUT_H);
           ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
           // JPEG 0.90 — bom visual, arquivo leve (~1-3MB por página)
-          const imgData = resized.toDataURL('image/jpeg', 0.60);
+          const imgData = resized.toDataURL('image/jpeg', 0.90);
           if (i > 0) pdf.addPage();
           pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
         }
