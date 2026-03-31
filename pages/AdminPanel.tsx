@@ -76,21 +76,40 @@ const AdminPanel: React.FC = () => {
 
   const handleImageUpload = (type: keyof MasterData['layoutImages'], e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert('A imagem é muito grande. Use arquivos PNG de até 2MB.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('A imagem é muito grande. Use arquivos de até 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      // Redimensiona e comprime a imagem para A4 (794x1123) antes de salvar
+      const img = new Image();
+      img.onload = () => {
+        const MAX_W = 794;
+        const MAX_H = 1123;
+        const canvas = document.createElement('canvas');
+        canvas.width = MAX_W;
+        canvas.height = MAX_H;
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, MAX_W, MAX_H);
+        // Mantém proporção e centraliza
+        const ratio = Math.min(MAX_W / img.width, MAX_H / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        ctx.drawImage(img, (MAX_W - w) / 2, (MAX_H - h) / 2, w, h);
+        // Salva como JPEG 0.80 — boa qualidade, ~10x menor que PNG original
+        const compressed = canvas.toDataURL('image/jpeg', 0.80);
         const newData = {
           ...data,
-          layoutImages: { ...data.layoutImages, [type]: reader.result as string }
+          layoutImages: { ...data.layoutImages, [type]: compressed }
         };
         persistData(newData);
       };
-      reader.readAsDataURL(file);
-    }
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClearImage = (type: keyof MasterData['layoutImages']) => {
