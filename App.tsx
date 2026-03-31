@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { supabase } from './services/supabase';
 import {
   LogIn, LayoutDashboard, FileText, Users, Printer, Settings, LogOut,
   BarChart3, X, CheckCircle2, AlertCircle, Kanban, ChevronLeft, ChevronRight, Menu
@@ -251,6 +252,33 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, collapsed, mobileOpen
 const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: any }> = ({ onLogin, notification }) => {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [forgotMsg, setForgotMsg] = useState('');
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotStatus('sending');
+    try {
+      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: redirectUrl,
+      });
+      if (error) {
+        setForgotStatus('error');
+        setForgotMsg('Não foi possível enviar o e-mail. Verifique o endereço e tente novamente.');
+      } else {
+        setForgotStatus('sent');
+        setForgotMsg(`Link de recuperação enviado para ${forgotEmail}. Verifique sua caixa de entrada.`);
+      }
+    } catch {
+      setForgotStatus('error');
+      setForgotMsg('Erro de conexão. Tente novamente.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -260,27 +288,96 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
           <p className="text-blue-100 opacity-80 relative z-10">Sistema de Propostas Comerciais</p>
         </div>
         <div className="p-10">
-          <form onSubmit={(e) => { e.preventDefault(); onLogin(email, pass); }}>
+
+          {/* ── TELA: Recuperar Senha ── */}
+          {showForgot ? (
             <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Corporativo</label>
-                <input type="email" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="voce@empresa.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <div className="text-center mb-2">
+                <h3 className="text-lg font-black text-slate-800">Recuperar Senha</h3>
+                <p className="text-sm text-slate-500 mt-1">Informe seu e-mail e enviaremos um link para redefinir a senha.</p>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Senha de Acesso</label>
-                <input type="password" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} required />
-              </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3">
-                <LogIn size={20} /> Entrar no Sistema
+
+              {forgotStatus === 'sent' ? (
+                <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center">
+                  <CheckCircle2 size={40} className="text-green-500 mx-auto mb-3" />
+                  <p className="text-green-700 font-bold text-sm">{forgotMsg}</p>
+                  <p className="text-green-600 text-xs mt-2">Verifique também a pasta de spam.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Cadastrado</label>
+                    <input
+                      type="email"
+                      className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                      placeholder="voce@empresa.com"
+                      value={forgotEmail}
+                      onChange={e => { setForgotEmail(e.target.value); setForgotStatus('idle'); }}
+                      required
+                    />
+                  </div>
+                  {forgotStatus === 'error' && (
+                    <div className="bg-red-50 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold text-red-700">
+                      <AlertCircle size={16} /> {forgotMsg}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={forgotStatus === 'sending'}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                  >
+                    {forgotStatus === 'sending' ? (
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Enviando...</>
+                    ) : (
+                      'Enviar Link de Recuperação'
+                    )}
+                  </button>
+                </form>
+              )}
+
+              <button
+                onClick={() => { setShowForgot(false); setForgotStatus('idle'); setForgotEmail(''); }}
+                className="w-full text-slate-400 hover:text-slate-600 text-sm font-bold py-2 transition flex items-center justify-center gap-1"
+              >
+                ← Voltar ao login
               </button>
             </div>
-          </form>
-          {notification && (
-            <div className={`mt-4 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold ${notification.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              {notification.message}
-            </div>
+          ) : (
+            /* ── TELA: Login Normal ── */
+            <>
+              <form onSubmit={(e) => { e.preventDefault(); onLogin(email, pass); }}>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Corporativo</label>
+                    <input type="email" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="voce@empresa.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Senha de Acesso</label>
+                      <button
+                        type="button"
+                        onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-bold transition"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
+                    <input type="password" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} required />
+                  </div>
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3">
+                    <LogIn size={20} /> Entrar no Sistema
+                  </button>
+                </div>
+              </form>
+              {notification && (
+                <div className={`mt-4 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold ${notification.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {notification.message}
+                </div>
+              )}
+            </>
           )}
+
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-slate-400 text-[10px] uppercase tracking-widest">Premium Pro Proposals © 2024</p>
           </div>
