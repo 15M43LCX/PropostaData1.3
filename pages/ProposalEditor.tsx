@@ -114,7 +114,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const getTotalLabel = () => {
-    if (formData.pricingModel === PricingModel.VENDA) return 'Valor Total';
+    // Venda: não exibe total (valores por item já estão visíveis)
     if (formData.pricingModel === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
     return null;
   };
