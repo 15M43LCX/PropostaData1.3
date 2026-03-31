@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { supabase } from './services/supabase';
 import {
   LogIn, LayoutDashboard, FileText, Users, Printer, Settings, LogOut,
   BarChart3, X, CheckCircle2, AlertCircle, Kanban, ChevronLeft, ChevronRight, Menu
@@ -261,22 +260,13 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
     e.preventDefault();
     if (!forgotEmail) return;
     setForgotStatus('sending');
-    try {
-      const redirectUrl = `${window.location.origin}${window.location.pathname}`;
-      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: redirectUrl,
-      });
-      if (error) {
-        setForgotStatus('error');
-        setForgotMsg('Não foi possível enviar o e-mail. Verifique o endereço e tente novamente.');
-      } else {
-        setForgotStatus('sent');
-        setForgotMsg(`Link de recuperação enviado para ${forgotEmail}. Verifique sua caixa de entrada.`);
-      }
-    } catch {
-      setForgotStatus('error');
-      setForgotMsg('Erro de conexão. Tente novamente.');
-    }
+    // O sistema usa tabela própria (não auth nativo do Supabase),
+    // então o reset é feito pelo Admin no painel de Configurações.
+    // Aqui apenas simulamos a mensagem de orientação.
+    setTimeout(() => {
+      setForgotStatus('sent');
+      setForgotMsg(forgotEmail);
+    }, 800);
   };
 
   return (
@@ -293,20 +283,32 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
           {showForgot ? (
             <div className="space-y-5">
               <div className="text-center mb-2">
-                <h3 className="text-lg font-black text-slate-800">Recuperar Senha</h3>
-                <p className="text-sm text-slate-500 mt-1">Informe seu e-mail e enviaremos um link para redefinir a senha.</p>
+                <h3 className="text-lg font-black text-slate-800">Esqueci minha senha</h3>
+                <p className="text-sm text-slate-500 mt-1">Informe seu e-mail para identificar sua conta.</p>
               </div>
 
               {forgotStatus === 'sent' ? (
-                <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center">
-                  <CheckCircle2 size={40} className="text-green-500 mx-auto mb-3" />
-                  <p className="text-green-700 font-bold text-sm">{forgotMsg}</p>
-                  <p className="text-green-600 text-xs mt-2">Verifique também a pasta de spam.</p>
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <AlertCircle size={24} className="text-amber-500" />
+                    </div>
+                    <p className="text-amber-800 font-black text-sm mb-1">Conta identificada</p>
+                    <p className="text-amber-700 text-xs leading-relaxed">
+                      O e-mail <strong>{forgotMsg}</strong> está registrado no sistema.
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                    <p className="text-blue-700 font-black text-xs uppercase tracking-wide mb-2">Como redefinir sua senha:</p>
+                    <p className="text-blue-600 text-xs leading-relaxed">
+                      Entre em contato com o <strong>Administrador do sistema</strong> e solicite a redefinição. O Admin pode alterar sua senha diretamente em <strong>Configurações → Usuários → ícone 🔒</strong>.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Cadastrado</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Seu E-mail Cadastrado</label>
                     <input
                       type="email"
                       className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
@@ -327,9 +329,9 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
                   >
                     {forgotStatus === 'sending' ? (
-                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Enviando...</>
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Verificando...</>
                     ) : (
-                      'Enviar Link de Recuperação'
+                      'Localizar Minha Conta'
                     )}
                   </button>
                 </form>
