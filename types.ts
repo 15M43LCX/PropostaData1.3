@@ -115,3 +115,17 @@ export interface MasterData {
   };
   conversionResetMonth?: string; // Formato "YYYY-MM" — mês em que a taxa foi zerada
 }
+
+export type AuditModule = 'proposta' | 'cliente' | 'equipamento' | 'usuario';
+export type AuditAction = 'criar' | 'editar' | 'excluir';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;       // ISO string
+  userId: string;
+  userName: string;
+  module: AuditModule;
+  action: AuditAction;
+  recordId: string;
+  description: string;     // ex: "Editou proposta 2026012 - Teste"
+}
