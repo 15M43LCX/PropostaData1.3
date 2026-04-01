@@ -65,14 +65,16 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const getTotalLabel = (model: PricingModel): string | null => {
-    if (model === PricingModel.VENDA) return 'Valor Total';
+    // Venda: não exibe total consolidado (itens já mostram valor unitário individualmente)
     if (model === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
     return null;
   };
 
   const handleDelete = async (id: string) => {
+    const prop = proposals.find(p => p.id === id);
     if (window.confirm('Deseja realmente excluir esta proposta? Esta ação é irreversível.')) {
       await storage.deleteProposal(id);
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action: 'excluir', recordId: id, description: `Excluiu proposta ${prop?.code || id} — ${getCustomer(prop?.customerId || '')?.companyName || ''}` });
       await loadData();
     }
   };
@@ -86,6 +88,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
       status: ProposalStatus.ABERTO
     };
     await storage.saveProposal(newProp);
+    storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action: 'criar', recordId: newProp.id, description: `Duplicou proposta ${prop.code} → ${newProp.code} — ${getCustomer(prop.customerId)?.companyName || ''}` });
     await loadData();
   };
 
@@ -95,14 +98,33 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     setTimeout(async () => {
       if (!pdfRef.current) return;
       try {
-        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdf = new jsPDF('p', 'mm', 'a4', true);
         const pages = pdfRef.current.children;
+        // A4 a 96dpi = 794x1123px — tamanho fixo de saída
+        const OUT_W = 794;
+        const OUT_H = 1123;
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
-          const canvas = await html2canvas(page, { scale: 2, useCORS: true, logging: false, windowWidth: 794 });
-          const imgData = canvas.toDataURL('image/png');
+          const canvas = await html2canvas(page, {
+            scale: 1,
+            useCORS: true,
+            logging: false,
+            windowWidth: 794,
+            imageTimeout: 0,
+            backgroundColor: '#ffffff',
+          });
+          // Redimensiona para tamanho fixo, independente do canvas original
+          const resized = document.createElement('canvas');
+          resized.width = OUT_W;
+          resized.height = OUT_H;
+          const ctx = resized.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, OUT_W, OUT_H);
+          ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+          // JPEG 0.60 — bom visual, arquivo leve (~1-3MB por página)
+          const imgData = resized.toDataURL('image/jpeg', 0.60);
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
         }
         const cust = getCustomer(prop.customerId);
         pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
@@ -266,8 +288,37 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
         </div>
       ) : (
         <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
-          <div className="flex items-center justify-between px-8 py-4 border-b border-slate-50">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{filtered.length} proposta(s){activeCount > 0 ? ' filtrada(s)' : ''}</span>
+          <div className="flex flex-wrap items-center justify-between px-8 py-4 border-b border-slate-50 gap-3">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {filtered.length} proposta(s){activeCount > 0 ? ' filtrada(s)' : ''}
+            </span>
+            {/* Somatório por modelo nos resultados filtrados */}
+            <div className="flex flex-wrap gap-3">
+              {(() => {
+                const vendaTotal = filtered.filter(p => p.pricingModel === PricingModel.VENDA).reduce((a, p) => a + p.totalValue, 0);
+                const outsTotal = filtered.filter(p => p.pricingModel === PricingModel.OUTSOURCING).reduce((a, p) => a + p.totalValue, 0);
+                const cliqQty = filtered.filter(p => p.pricingModel === PricingModel.CLIQUE).length;
+                return (
+                  <>
+                    {vendaTotal > 0 && (
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                        Venda: {formatCurrency(vendaTotal)}
+                      </span>
+                    )}
+                    {outsTotal > 0 && (
+                      <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                        Outsourcing/mês: {formatCurrency(outsTotal)}
+                      </span>
+                    )}
+                    {cliqQty > 0 && (
+                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                        Clique: {cliqQty} proposta(s)
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -294,7 +345,9 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                       </td>
                       <td className="px-6 py-5">
                         <p className="text-sm font-black text-slate-700">
-                          {p.pricingModel === PricingModel.CLIQUE ? '— Por Clique' : `R$ ${p.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          {p.pricingModel === PricingModel.CLIQUE
+                            ? '— Por Clique'
+                            : formatCurrency(p.totalValue)}
                         </p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{p.pricingModel}</p>
                       </td>
@@ -315,6 +368,9 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
           </div>
         </div>
       )}
+
+      {/* TEMPLATE DO PDF */}
+      {activeProp && (
         <div className="pdf-template" ref={pdfRef}>
 
           {/* PÁGINA 1: CAPA */}
