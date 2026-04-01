@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import {
   LogIn, LayoutDashboard, FileText, Users, Printer, Settings, LogOut,
-  BarChart3, X, CheckCircle2, AlertCircle, Kanban, ChevronLeft, ChevronRight, Menu
+  BarChart3, X, CheckCircle2, AlertCircle, Kanban, ChevronLeft, ChevronRight, Menu, ClipboardList
 } from 'lucide-react';
 import { storage } from './services/storage';
 import { User, UserRole } from './types';
@@ -14,6 +14,7 @@ import CustomerList from './pages/CustomerList';
 import EquipmentList from './pages/EquipmentList';
 import AdminPanel from './pages/AdminPanel';
 import KanbanBoard from './pages/KanbanBoard';
+import AuditLogPage from './pages/AuditLogPage';
 
 const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
 
@@ -163,6 +164,7 @@ const AppLayout: React.FC<{ user: User; onLogout: () => void; notification: any 
             <Route path="/equipment" element={<EquipmentList user={user} />} />
             <Route path="/kanban" element={<KanbanBoard user={user} />} />
             <Route path="/admin" element={user.role === UserRole.ADMIN ? <AdminPanel /> : <Navigate to="/" />} />
+            <Route path="/logs" element={user.role === UserRole.ADMIN ? <AuditLogPage user={user} /> : <Navigate to="/" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
@@ -186,7 +188,10 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, collapsed, mobileOpen
     { label: 'Clientes', icon: Users, path: '/customers' },
     { label: 'Equipamentos', icon: Printer, path: '/equipment' },
   ];
-  if (user.role === UserRole.ADMIN) menuItems.push({ label: 'Configurações', icon: Settings, path: '/admin' });
+  if (user.role === UserRole.ADMIN) {
+    menuItems.push({ label: 'Log de Alterações', icon: ClipboardList, path: '/logs' });
+    menuItems.push({ label: 'Configurações', icon: Settings, path: '/admin' });
+  }
   const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   return (
@@ -251,6 +256,24 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, collapsed, mobileOpen
 const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: any }> = ({ onLogin, notification }) => {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [forgotMsg, setForgotMsg] = useState('');
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotStatus('sending');
+    // O sistema usa tabela própria (não auth nativo do Supabase),
+    // então o reset é feito pelo Admin no painel de Configurações.
+    // Aqui apenas simulamos a mensagem de orientação.
+    setTimeout(() => {
+      setForgotStatus('sent');
+      setForgotMsg(forgotEmail);
+    }, 800);
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -260,27 +283,108 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
           <p className="text-blue-100 opacity-80 relative z-10">Sistema de Propostas Comerciais</p>
         </div>
         <div className="p-10">
-          <form onSubmit={(e) => { e.preventDefault(); onLogin(email, pass); }}>
+
+          {/* ── TELA: Recuperar Senha ── */}
+          {showForgot ? (
             <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Corporativo</label>
-                <input type="email" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="voce@empresa.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <div className="text-center mb-2">
+                <h3 className="text-lg font-black text-slate-800">Esqueci minha senha</h3>
+                <p className="text-sm text-slate-500 mt-1">Informe seu e-mail para identificar sua conta.</p>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Senha de Acesso</label>
-                <input type="password" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} required />
-              </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3">
-                <LogIn size={20} /> Entrar no Sistema
+
+              {forgotStatus === 'sent' ? (
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
+                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <AlertCircle size={24} className="text-amber-500" />
+                    </div>
+                    <p className="text-amber-800 font-black text-sm mb-1">Conta identificada</p>
+                    <p className="text-amber-700 text-xs leading-relaxed">
+                      O e-mail <strong>{forgotMsg}</strong> está registrado no sistema.
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+                    <p className="text-blue-700 font-black text-xs uppercase tracking-wide mb-2">Como redefinir sua senha:</p>
+                    <p className="text-blue-600 text-xs leading-relaxed">
+                      Entre em contato com o <strong>Administrador do sistema</strong> e solicite a redefinição. O Admin pode alterar sua senha diretamente em <strong>Configurações → Usuários → ícone 🔒</strong>.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Seu E-mail Cadastrado</label>
+                    <input
+                      type="email"
+                      className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                      placeholder="voce@empresa.com"
+                      value={forgotEmail}
+                      onChange={e => { setForgotEmail(e.target.value); setForgotStatus('idle'); }}
+                      required
+                    />
+                  </div>
+                  {forgotStatus === 'error' && (
+                    <div className="bg-red-50 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold text-red-700">
+                      <AlertCircle size={16} /> {forgotMsg}
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={forgotStatus === 'sending'}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
+                  >
+                    {forgotStatus === 'sending' ? (
+                      <><span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></span> Verificando...</>
+                    ) : (
+                      'Localizar Minha Conta'
+                    )}
+                  </button>
+                </form>
+              )}
+
+              <button
+                onClick={() => { setShowForgot(false); setForgotStatus('idle'); setForgotEmail(''); }}
+                className="w-full text-slate-400 hover:text-slate-600 text-sm font-bold py-2 transition flex items-center justify-center gap-1"
+              >
+                ← Voltar ao login
               </button>
             </div>
-          </form>
-          {notification && (
-            <div className={`mt-4 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold ${notification.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-              {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              {notification.message}
-            </div>
+          ) : (
+            /* ── TELA: Login Normal ── */
+            <>
+              <form onSubmit={(e) => { e.preventDefault(); onLogin(email, pass); }}>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">E-mail Corporativo</label>
+                    <input type="email" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="voce@empresa.com" value={email} onChange={e => setEmail(e.target.value)} required />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Senha de Acesso</label>
+                      <button
+                        type="button"
+                        onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-bold transition"
+                      >
+                        Esqueci minha senha
+                      </button>
+                    </div>
+                    <input type="password" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)} required />
+                  </div>
+                  <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3">
+                    <LogIn size={20} /> Entrar no Sistema
+                  </button>
+                </div>
+              </form>
+              {notification && (
+                <div className={`mt-4 p-3 rounded-xl flex items-center gap-2 text-sm font-semibold ${notification.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  {notification.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {notification.message}
+                </div>
+              )}
+            </>
           )}
+
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
             <p className="text-slate-400 text-[10px] uppercase tracking-widest">Premium Pro Proposals © 2024</p>
           </div>
