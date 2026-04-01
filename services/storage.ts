@@ -1,4 +1,4 @@
-import { Customer, Equipment, MasterData, Proposal, User, UserRole } from '../types';
+import { AuditLog, Customer, Equipment, MasterData, Proposal, User, UserRole } from '../types';
 import { INITIAL_MASTER_DATA, MOCK_CUSTOMERS, MOCK_EQUIPMENTS, MOCK_USERS } from '../constants';
 import { supabase } from './supabase';
 
@@ -76,7 +76,7 @@ export const storage = {
     return user.role === UserRole.ADMIN ? all : all.filter(p => p.sellerId === user.id);
   },
 
-  // ─── MASTER DATA (agora no Supabase) ─────────────────────────
+  // ─── MASTER DATA ─────────────────────────────────────────────
   getMasterData: async (): Promise<MasterData> => {
     const { data, error } = await supabase
       .from('master_data').select('*').eq('key', 'config').maybeSingle();
@@ -89,7 +89,23 @@ export const storage = {
     if (error) throw error;
   },
 
-  // ─── SESSÃO (localStorage — ok para sessão local) ─────────────
+  // ─── AUDIT LOG ───────────────────────────────────────────────
+  getLogs: async (): Promise<AuditLog[]> => {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+    return handleResponse(data, error, []);
+  },
+  addLog: async (log: AuditLog): Promise<void> => {
+    // fire-and-forget — nunca bloqueia a operação principal
+    supabase.from('audit_logs').insert(log).then(({ error }) => {
+      if (error) console.warn('Audit log error:', error.message);
+    });
+  },
+
+  // ─── SESSÃO ──────────────────────────────────────────────────
   getCurrentUser: (): User | null => {
     const data = localStorage.getItem(CURRENT_USER_KEY);
     return data ? JSON.parse(data) : null;
