@@ -100,31 +100,33 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
       try {
         const pdf = new jsPDF('p', 'mm', 'a4', true);
         const pages = pdfRef.current.children;
-        // A4 a 96dpi = 794x1123px — tamanho fixo de saída
-        const OUT_W = 794;
-        const OUT_H = 1123;
+        // A4 a 200dpi = 1654x2339px — alta qualidade
+        const OUT_W = 1654;
+        const OUT_H = 2339;
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
           const canvas = await html2canvas(page, {
-            scale: 10,
+            scale: 2,
             useCORS: true,
             logging: false,
             windowWidth: 794,
             imageTimeout: 0,
             backgroundColor: '#ffffff',
           });
-          // Redimensiona para tamanho fixo, independente do canvas original
+          // Redimensiona para alta resolução
           const resized = document.createElement('canvas');
           resized.width = OUT_W;
           resized.height = OUT_H;
           const ctx = resized.getContext('2d')!;
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, OUT_W, OUT_H);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
-          // JPEG 0.60 — bom visual, arquivo leve (~1-3MB por página)
-          const imgData = resized.toDataURL('image/jpeg', 10.60);
+          // PNG sem perda de qualidade para textos nítidos
+          const imgData = resized.toDataURL('image/png');
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
+          pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, `pg${i}`, 'NONE');
         }
         const cust = getCustomer(prop.customerId);
         pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
