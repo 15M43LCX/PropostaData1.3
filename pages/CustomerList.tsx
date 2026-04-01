@@ -41,8 +41,10 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const handleDelete = async (id: string) => {
+    const c = customers.find(x => x.id === id);
     if (window.confirm('Excluir este cliente? Isso removerá o vínculo com futuras propostas.')) {
       await storage.deleteCustomer(id);
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'cliente', action: 'excluir', recordId: id, description: `Excluiu cliente ${c?.companyName || id}` });
       await loadData();
     }
   };
@@ -52,7 +54,9 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
       alert('A Razão Social é obrigatória.');
       return;
     }
+    const isNew = !customers.find(c => c.id === currentCustomer.id);
     await storage.saveCustomer(currentCustomer as Customer);
+    storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'cliente', action: isNew ? 'criar' : 'editar', recordId: currentCustomer.id!, description: `${isNew ? 'Cadastrou' : 'Editou'} cliente ${currentCustomer.companyName}` });
     await loadData();
     setIsEditing(false);
   };
@@ -162,6 +166,22 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
                     <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 uppercase" maxLength={2} value={currentCustomer.state} onChange={e => setCurrentCustomer({ ...currentCustomer, state: e.target.value })} />
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="md:col-span-3 space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logradouro (Rua / Av.)</label>
+                  <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={currentCustomer.address || ''} onChange={e => setCurrentCustomer({ ...currentCustomer, address: e.target.value })} placeholder="Ex: Av. Brasil" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Número</label>
+                  <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={currentCustomer.number || ''} onChange={e => setCurrentCustomer({ ...currentCustomer, number: e.target.value })} placeholder="Ex: 1500" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bairro</label>
+                <input className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={currentCustomer.neighborhood || ''} onChange={e => setCurrentCustomer({ ...currentCustomer, neighborhood: e.target.value })} placeholder="Ex: Centro" />
               </div>
             </div>
             <div className="p-8 bg-slate-50 flex justify-end gap-4 border-t">
