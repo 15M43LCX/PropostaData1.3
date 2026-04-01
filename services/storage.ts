@@ -100,8 +100,14 @@ export const storage = {
   },
   addLog: async (log: AuditLog): Promise<void> => {
     // fire-and-forget — nunca bloqueia a operação principal
+    // ATENÇÃO: para funcionar, a tabela 'audit_logs' deve existir no Supabase
+    // e ter uma Row Level Security policy que permita INSERT para usuários autenticados
+    // ou ser acessível via service role. Verifique: Supabase → Table Editor → audit_logs → Policies.
     supabase.from('audit_logs').insert(log).then(({ error }) => {
-      if (error) console.warn('Audit log error:', error.message);
+      if (error) {
+        console.warn('⚠️ Audit log NÃO registrado:', error.message);
+        console.warn('Verifique se a tabela audit_logs existe e se a RLS policy permite INSERT.');
+      }
     });
   },
 
