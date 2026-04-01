@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, AlertCircle, Star, Search, X, Printer } from 'lucide-react';
+import { Trash2, AlertCircle, Star, Search, X, Printer, Plus, Save, UserPlus } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Proposal, PricingModel, OutsourcingSubtype, ProposalStatus, ProposalItem, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
@@ -16,6 +16,12 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [condSearch, setCondSearch] = useState('');
   const [eqSearch, setEqSearch] = useState('');
+  const [custSearch, setCustSearch] = useState('');
+  const [custDropOpen, setCustDropOpen] = useState(false);
+  const custDropRef = useRef<HTMLDivElement>(null);
+  const [showNewCust, setShowNewCust] = useState(false);
+  const [newCust, setNewCust] = useState<{ companyName: string; tradeName: string; contactName: string; phone: string; email: string; address: string; number: string; neighborhood: string; city: string; state: string }>({ companyName: '', tradeName: '', contactName: '', phone: '', email: '', address: '', number: '', neighborhood: '', city: '', state: '' });
+  const [savingCust, setSavingCust] = useState(false);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -106,11 +112,45 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     setIsSaving(true);
     try {
       await storage.saveProposal(formData);
+      const action = id ? 'editar' : 'criar';
+      const custName = customers.find(c => c.id === formData.customerId)?.companyName || '';
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action, recordId: formData.id, description: `${id ? 'Editou' : 'Criou'} proposta ${formData.code} — ${custName}` });
       navigate('/proposals');
     } catch {
       setError('Erro ao salvar proposta.');
       setIsSaving(false);
     }
+  };
+
+  // Fecha dropdown de cliente ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (custDropRef.current && !custDropRef.current.contains(e.target as Node)) setCustDropOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filteredCustomers = customers.filter(c =>
+    `${c.companyName} ${c.tradeName}`.toLowerCase().includes(custSearch.toLowerCase())
+  );
+
+  const handleSaveNewCust = async () => {
+    if (!newCust.companyName.trim()) { alert('A Razão Social é obrigatória.'); return; }
+    setSavingCust(true);
+    try {
+      const id = Math.random().toString(36).substr(2, 9);
+      const customer = { ...newCust, id, sellerId: user.id };
+      await storage.saveCustomer(customer);
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'cliente', action: 'criar', recordId: id, description: `Cadastrou cliente ${newCust.companyName} (via nova proposta)` });
+      const updated = await storage.getVisibleCustomers(user);
+      setCustomers(updated);
+      setFormData(prev => ({ ...prev, customerId: id }));
+      setCustSearch(customer.companyName);
+      setShowNewCust(false);
+      setNewCust({ companyName: '', tradeName: '', contactName: '', phone: '', email: '', address: '', number: '', neighborhood: '', city: '', state: '' });
+    } catch { alert('Erro ao salvar cliente.'); }
+    setSavingCust(false);
   };
 
   const getTotalLabel = () => {
@@ -158,10 +198,38 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Cliente</label>
-                  <select className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={formData.customerId} onChange={e => setFormData({ ...formData, customerId: e.target.value })}>
-                    <option value="">Selecione...</option>
-                    {customers.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-                  </select>
+                  <div className="flex gap-2 items-stretch">
+                    <div className="relative flex-1" ref={custDropRef}>
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
+                      <input
+                        type="text"
+                        placeholder="Buscar cliente..."
+                        className="w-full pl-9 pr-8 p-4 bg-slate-50 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
+                        value={custSearch || (formData.customerId ? (customers.find(c => c.id === formData.customerId)?.companyName || '') : '')}
+                        onFocus={() => { setCustDropOpen(true); setCustSearch(''); }}
+                        onChange={e => { setCustSearch(e.target.value); setCustDropOpen(true); if (!e.target.value) setFormData(prev => ({ ...prev, customerId: '' })); }}
+                      />
+                      {(formData.customerId || custSearch) && (
+                        <button className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10" onClick={() => { setFormData(prev => ({ ...prev, customerId: '' })); setCustSearch(''); setCustDropOpen(false); }}><X size={13} /></button>
+                      )}
+                      {custDropOpen && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-52 overflow-y-auto">
+                          {filteredCustomers.length === 0 ? (
+                            <p className="text-xs text-slate-400 text-center py-4">Nenhum cliente encontrado.</p>
+                          ) : filteredCustomers.map(c => (
+                            <button key={c.id} onClick={() => { setFormData(prev => ({ ...prev, customerId: c.id })); setCustSearch(c.companyName); setCustDropOpen(false); }}
+                              className={`w-full flex flex-col px-4 py-3 hover:bg-blue-50 text-left transition ${formData.customerId === c.id ? 'bg-blue-50' : ''}`}>
+                              <span className="text-sm font-bold text-slate-800">{c.companyName}</span>
+                              {c.tradeName && <span className="text-[10px] text-slate-400 uppercase">{c.tradeName}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setShowNewCust(true)} title="Cadastrar novo cliente" className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-[10px] transition shadow-sm whitespace-nowrap">
+                      <UserPlus size={14} /> Novo
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Título da Solução</label>
@@ -532,6 +600,69 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
           </button>
         </div>
       </div>
+
+      {/* ── Modal: Cadastrar Novo Cliente ── */}
+      {showNewCust && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[36px] w-full max-w-xl overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="bg-slate-50 px-8 py-5 flex items-center justify-between border-b">
+              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><UserPlus size={14} /> Cadastrar Novo Cliente</h3>
+              <button onClick={() => setShowNewCust(false)} className="bg-white p-2 rounded-xl text-slate-400 shadow-sm"><X size={18} /></button>
+            </div>
+            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Razão Social *</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.companyName} onChange={e => setNewCust(p => ({ ...p, companyName: e.target.value }))} placeholder="Nome da Empresa LTDA" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome Fantasia</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.tradeName} onChange={e => setNewCust(p => ({ ...p, tradeName: e.target.value }))} placeholder="Nome Curto" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.contactName} onChange={e => setNewCust(p => ({ ...p, contactName: e.target.value }))} placeholder="João da Silva" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telefone</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.phone} onChange={e => setNewCust(p => ({ ...p, phone: e.target.value }))} placeholder="(21) 9000-0000" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">E-mail</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.email} onChange={e => setNewCust(p => ({ ...p, email: e.target.value }))} placeholder="contato@empresa.com" />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logradouro</label>
+                  <div className="flex gap-2">
+                    <input className="flex-1 p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.address} onChange={e => setNewCust(p => ({ ...p, address: e.target.value }))} placeholder="Av. Brasil" />
+                    <input className="w-24 p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.number} onChange={e => setNewCust(p => ({ ...p, number: e.target.value }))} placeholder="Nº" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bairro</label>
+                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.neighborhood} onChange={e => setNewCust(p => ({ ...p, neighborhood: e.target.value }))} placeholder="Centro" />
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2 space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cidade</label>
+                    <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.city} onChange={e => setNewCust(p => ({ ...p, city: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UF</label>
+                    <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 uppercase" maxLength={2} value={newCust.state} onChange={e => setNewCust(p => ({ ...p, state: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50 border-t flex justify-end gap-3">
+              <button onClick={() => setShowNewCust(false)} className="px-6 py-3 font-black text-slate-400 hover:text-slate-700 uppercase text-[10px] tracking-widest transition">Cancelar</button>
+              <button onClick={handleSaveNewCust} disabled={savingCust} className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-green-100 uppercase text-[10px] tracking-widest disabled:opacity-60">
+                <Save size={14} /> {savingCust ? 'Salvando...' : 'Salvar e Selecionar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
