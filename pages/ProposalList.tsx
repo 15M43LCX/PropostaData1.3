@@ -106,7 +106,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
           const canvas = await html2canvas(page, {
-            scale: 2,
+            scale: 5,
             useCORS: true,
             logging: false,
             windowWidth: 794,
@@ -122,7 +122,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
           ctx.fillRect(0, 0, OUT_W, OUT_H);
           ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
           // JPEG 0.60 — bom visual, arquivo leve (~1-3MB por página)
-          const imgData = resized.toDataURL('image/jpeg', 1.60);
+          const imgData = resized.toDataURL('image/jpeg', 5.60);
           if (i > 0) pdf.addPage();
           pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
         }
