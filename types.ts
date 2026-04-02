@@ -95,6 +95,11 @@ export interface Proposal {
   slaTime: string;
   contractTerm?: string; // Novo campo para vigência
   selectedConditions?: string[]; // IDs das condições comerciais selecionadas
+  franchiseMode?: 'global' | 'individual'; // Modo de franquia no outsourcing
+  globalMonoFranchise?: number;   // Franquia global P&B (pág)
+  globalMonoExcess?: number;      // Excedente global P&B (R$/pág)
+  globalColorFranchise?: number;  // Franquia global Cor (pág)
+  globalColorExcess?: number;     // Excedente global Cor (R$/pág)
   status: ProposalStatus;
   totalValue: number;
 }
