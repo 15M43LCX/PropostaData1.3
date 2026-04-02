@@ -1,734 +1,750 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, AlertCircle, Star, Search, X, Printer, Plus, Save, UserPlus } from 'lucide-react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, PlusCircle, Edit, Download, Loader2, Printer, Copy, Trash2, User as UserIcon, Star, Filter, X, ChevronDown, Search } from 'lucide-react';
 import { storage } from '../services/storage';
-import { User, Proposal, PricingModel, OutsourcingSubtype, ProposalStatus, ProposalItem, Customer, Equipment, MasterData } from '../types';
+import { User, Proposal, ProposalStatus, PricingModel, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
-const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+interface PLFilters { search: string; sellerId: string; customerId: string; pricingModel: string; status: string; }
+const EMPTY: PLFilters = { search: '', sellerId: '', customerId: '', pricingModel: '', status: '' };
 
-const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
-  const { id } = useParams();
+const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [condSearch, setCondSearch] = useState('');
-  const [eqSearch, setEqSearch] = useState('');
-  const [custSearch, setCustSearch] = useState('');
-  const [custDropOpen, setCustDropOpen] = useState(false);
-  const custDropRef = useRef<HTMLDivElement>(null);
-  const [showNewCust, setShowNewCust] = useState(false);
-  const [newCust, setNewCust] = useState<{ companyName: string; tradeName: string; contactName: string; phone: string; email: string; address: string; number: string; neighborhood: string; city: string; state: string }>({ companyName: '', tradeName: '', contactName: '', phone: '', email: '', address: '', number: '', neighborhood: '', city: '', state: '' });
-  const [savingCust, setSavingCust] = useState(false);
+  const pdfRef = useRef<HTMLDivElement>(null);
 
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [masterData, setMasterData] = useState<MasterData>(INITIAL_MASTER_DATA);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [activeProp, setActiveProp] = useState<Proposal | null>(null);
+  const [filters, setFilters] = useState<PLFilters>(EMPTY);
+  const [filterOpen, setFilterOpen] = useState(false);
 
-  const [formData, setFormData] = useState<Proposal>({
-    id: id || Math.random().toString(36).substr(2, 9),
-    code: '',
-    date: new Date().toLocaleDateString('pt-BR'),
-    sellerId: user.id,
-    customerId: '',
-    title: '',
-    pricingModel: PricingModel.OUTSOURCING,
-    outsourcingSubtype: OutsourcingSubtype.FRANCHISE_EXCESS,
-    items: [],
-    paymentMethod: '',
-    validity: '',
-    deliveryTime: '',
-    slaTime: '',
-    contractTerm: '',
-    selectedConditions: [],
-    franchiseMode: 'individual',
-    globalMonoFranchise: 0,
-    globalMonoExcess: 0,
-    globalColorFranchise: 0,
-    globalColorExcess: 0,
-    status: ProposalStatus.ABERTO,
-    totalValue: 0
-  });
-
-  useEffect(() => {
-    const load = async () => {
-      const [c, e, md, proposals] = await Promise.all([
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [props, custs, eqs, users, md] = await Promise.all([
+        storage.getVisibleProposals(user),
         storage.getVisibleCustomers(user),
         storage.getEquipments(),
+        storage.getUsers(),
         storage.getMasterData(),
-        storage.getProposals(),
       ]);
-      setCustomers(c);
-      setEquipments(e);
+      setProposals(props);
+      setCustomers(custs);
+      setEquipments(eqs);
+      setAllUsers(users);
       setMasterData(md);
-      if (id) {
-        const existing = proposals.find(p => p.id === id);
-        if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [], franchiseMode: existing.franchiseMode || 'individual', globalMonoFranchise: existing.globalMonoFranchise || 0, globalMonoExcess: existing.globalMonoExcess || 0, globalColorFranchise: existing.globalColorFranchise || 0, globalColorExcess: existing.globalColorExcess || 0 });
-      } else {
-        const year = new Date().getFullYear();
-        const sequence = (proposals.length + 1).toString().padStart(3, '0');
-        setFormData(prev => ({
-          ...prev,
-          code: `${year}${sequence}`,
-          paymentMethod: md.paymentMethods[0] || '',
-          validity: md.validities[0] || '',
-          deliveryTime: md.deliveryTimes[0] || '',
-          slaTime: md.slaTimes[0] || '',
-          contractTerm: md.contractTerms[0] || '',
-        }));
-      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
       setLoading(false);
-    };
-    load();
-  }, [id, user]);
-
-  useEffect(() => {
-    let total = 0;
-    if (formData.pricingModel === PricingModel.VENDA)
-      total = formData.items.reduce((acc, i) => acc + ((i.unitValue || 0) * i.quantity), 0);
-    else if (formData.pricingModel === PricingModel.OUTSOURCING)
-      total = formData.items.reduce((acc, i) => acc + ((i.monthlyValue || 0) * i.quantity), 0);
-    setFormData(prev => ({ ...prev, totalValue: total }));
-  }, [formData.items, formData.pricingModel]);
-
-  const newBlankItem = (isExtra = false): ProposalItem => ({
-    equipmentId: isExtra ? '' : (equipments[0]?.id || ''),
-    quantity: 1, unitValue: 0, monthlyValue: 0,
-    monoFranchise: 0, monoExcess: 0, monoClickPrice: 0,
-    colorFranchise: 0, colorExcess: 0, colorClickPrice: 0,
-    itemNote: '', isExtra, extraDescription: '',
-  });
-
-  const updateItem = (index: number, updates: Partial<ProposalItem>) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], ...updates };
-    setFormData(prev => ({ ...prev, items: newItems }));
-  };
-  const removeItem = (i: number) =>
-    setFormData(prev => ({ ...prev, items: prev.items.filter((_, x) => x !== i) }));
-
-  const handleSave = async () => {
-    if (!formData.customerId || !formData.title || formData.items.length === 0) {
-      setError('Verifique o cliente, título e se há itens adicionados.');
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await storage.saveProposal(formData);
-      const action = id ? 'editar' : 'criar';
-      const custName = customers.find(c => c.id === formData.customerId)?.companyName || '';
-      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action, recordId: formData.id, description: `${id ? 'Editou' : 'Criou'} proposta ${formData.code} — ${custName}` });
-      navigate('/proposals');
-    } catch {
-      setError('Erro ao salvar proposta.');
-      setIsSaving(false);
     }
   };
 
-  // Fecha dropdown de cliente ao clicar fora
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (custDropRef.current && !custDropRef.current.contains(e.target as Node)) setCustDropOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useEffect(() => { loadData(); }, [user]);
 
-  const filteredCustomers = customers.filter(c =>
-    `${c.companyName} ${c.tradeName}`.toLowerCase().includes(custSearch.toLowerCase())
-  );
+  const getCustomer = (id: string) => customers.find(c => c.id === id);
+  const getSeller = (id: string) => allUsers.find(u => u.id === id);
 
-  const handleSaveNewCust = async () => {
-    if (!newCust.companyName.trim()) { alert('A Razão Social é obrigatória.'); return; }
-    setSavingCust(true);
-    try {
-      const id = Math.random().toString(36).substr(2, 9);
-      const customer = { ...newCust, id, sellerId: user.id };
-      await storage.saveCustomer(customer);
-      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'cliente', action: 'criar', recordId: id, description: `Cadastrou cliente ${newCust.companyName} (via nova proposta)` });
-      const updated = await storage.getVisibleCustomers(user);
-      setCustomers(updated);
-      setFormData(prev => ({ ...prev, customerId: id }));
-      setCustSearch(customer.companyName);
-      setShowNewCust(false);
-      setNewCust({ companyName: '', tradeName: '', contactName: '', phone: '', email: '', address: '', number: '', neighborhood: '', city: '', state: '' });
-    } catch { alert('Erro ao salvar cliente.'); }
-    setSavingCust(false);
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const formatFullDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return dateStr;
+    const [day, month, year] = parts;
+    const months = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+    return `Rio de Janeiro, ${parseInt(day)} de ${months[parseInt(month) - 1]} de ${year}`;
   };
 
-  const getTotalLabel = () => {
-    // Venda: não exibe total (valores por item já estão visíveis)
-    if (formData.pricingModel === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
+  const getTotalLabel = (model: PricingModel): string | null => {
+    // Venda: não exibe total consolidado (itens já mostram valor unitário individualmente)
+    if (model === PricingModel.OUTSOURCING) return 'Valor Total Mensal';
     return null;
   };
-  const totalLabel = getTotalLabel();
 
-  // Filtro de condições comerciais
-  const filteredConditions = masterData.commercialConditions.filter(c =>
-    c.condition.toLowerCase().includes(condSearch.toLowerCase())
-  );
+  const handleDelete = async (id: string) => {
+    const prop = proposals.find(p => p.id === id);
+    if (window.confirm('Deseja realmente excluir esta proposta? Esta ação é irreversível.')) {
+      await storage.deleteProposal(id);
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action: 'excluir', recordId: id, description: `Excluiu proposta ${prop?.code || id} — ${getCustomer(prop?.customerId || '')?.companyName || ''}` });
+      await loadData();
+    }
+  };
 
-  // Filtro de equipamentos (Step 2)
-  const filteredEquipments = equipments.filter(e =>
-    `${e.brand} ${e.model} ${e.type} ${e.title}`.toLowerCase().includes(eqSearch.toLowerCase())
-  );
+  const handleDuplicate = async (prop: Proposal) => {
+    const newProp: Proposal = {
+      ...prop,
+      id: Math.random().toString(36).substr(2, 9),
+      code: `${prop.code}-COPIA`,
+      date: new Date().toLocaleDateString('pt-BR'),
+      status: ProposalStatus.ABERTO
+    };
+    await storage.saveProposal(newProp);
+    storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'proposta', action: 'criar', recordId: newProp.id, description: `Duplicou proposta ${prop.code} → ${newProp.code} — ${getCustomer(prop.customerId)?.companyName || ''}` });
+    await loadData();
+  };
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center font-black text-blue-600">CARREGANDO...</div>
-  );
+  const generatePDF = async (prop: Proposal) => {
+    setGenerating(prop.id);
+    setActiveProp(prop);
+    setTimeout(async () => {
+      if (!pdfRef.current) return;
+      try {
+        const pdf = new jsPDF('p', 'mm', 'a4', true);
+        const pages = pdfRef.current.children;
+        // A4 a 150dpi — boa qualidade e arquivo controlado (≤10MB)
+        const OUT_W = 1240;
+        const OUT_H = 1754;
+        for (let i = 0; i < pages.length; i++) {
+          const page = pages[i] as HTMLElement;
+          const canvas = await html2canvas(page, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            windowWidth: 794,
+            imageTimeout: 0,
+            backgroundColor: '#ffffff',
+          });
+          const resized = document.createElement('canvas');
+          resized.width = OUT_W;
+          resized.height = OUT_H;
+          const ctx = resized.getContext('2d')!;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, OUT_W, OUT_H);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
+          // JPEG 0.82 — alta qualidade visual, ~1-3MB por página
+          const imgData = resized.toDataURL('image/jpeg', 0.82);
+          if (i > 0) pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
+        }
+        const cust = getCustomer(prop.customerId);
+        pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
+      } catch (err) {
+        alert('Erro ao gerar PDF.');
+      } finally {
+        setGenerating(null);
+        setActiveProp(null);
+      }
+    }, 1500);
+  };
+
+  const getProposalBreakdown = (prop: Proposal) => {
+    const isGlobal = prop.franchiseMode === 'global';
+    const monoClickRate = prop.items.find(i => (i.monoClickPrice || 0) > 0)?.monoClickPrice || 0;
+    const colorItems = prop.items.filter(item => equipments.find(e => e.id === item.equipmentId)?.isColor);
+    const colorClickRate = colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
+
+    if (isGlobal) {
+      return {
+        isGlobal: true,
+        mono: { totalFranchise: prop.globalMonoFranchise || 0, excessRate: prop.globalMonoExcess || 0, clickRate: monoClickRate },
+        color: { totalFranchise: prop.globalColorFranchise || 0, excessRate: prop.globalColorExcess || 0, clickRate: colorClickRate },
+      };
+    }
+    const totalMonoFranchise = prop.items.reduce((acc, curr) => acc + (curr.monoFranchise * curr.quantity), 0);
+    const monoExcessRate = prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
+    const totalColorFranchise = colorItems.reduce((acc, curr) => acc + ((curr.colorFranchise || 0) * curr.quantity), 0);
+    const colorExcessRate = colorItems.find(i => (i.colorExcess || 0) > 0)?.colorExcess || 0;
+    return {
+      isGlobal: false,
+      mono: { totalFranchise: totalMonoFranchise, excessRate: monoExcessRate, clickRate: monoClickRate },
+      color: { totalFranchise: totalColorFranchise, excessRate: colorExcessRate, clickRate: colorClickRate }
+    };
+  };
+
+  // ── Filtro aplicado ──
+  const setF = (k: keyof PLFilters, v: string) => setFilters(prev => ({ ...prev, [k]: v }));
+  const activeCount = Object.values(filters).filter(Boolean).length;
+
+  const filtered = useMemo(() => proposals.filter(p => {
+    const cust = getCustomer(p.customerId);
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const match = (cust?.companyName || '').toLowerCase().includes(q)
+        || p.code.toLowerCase().includes(q)
+        || p.title.toLowerCase().includes(q);
+      if (!match) return false;
+    }
+    if (filters.sellerId && p.sellerId !== filters.sellerId) return false;
+    if (filters.customerId && p.customerId !== filters.customerId) return false;
+    if (filters.pricingModel && p.pricingModel !== filters.pricingModel) return false;
+    if (filters.status && p.status !== filters.status) return false;
+    return true;
+  }), [proposals, filters, customers]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 size={40} className="animate-spin text-blue-600" />
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Sincronizando com Banco de Dados...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-5xl mx-auto pb-20 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter">
-          {id ? 'Editar Proposta' : 'Nova Proposta'}
-        </h2>
-        <div className="flex gap-2">
-          {[1, 2, 3].map(s => (
-            <div key={s} className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${step === s ? 'bg-blue-600 text-white' : step > s ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-              {step > s ? '✓' : s}
-            </div>
-          ))}
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-800 font-montserrat tracking-tight">Vendas e Propostas</h2>
+          <p className="text-slate-500 font-medium text-sm">Controle total sobre seus documentos comerciais.</p>
         </div>
-      </div>
-
-      <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl overflow-hidden">
-        <div className="p-6 sm:p-8">
-
-          {/* ── STEP 1 ── */}
-          {step === 1 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400">Cliente</label>
-                  <div className="flex gap-2 items-stretch">
-                    <div className="relative flex-1" ref={custDropRef}>
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
-                      <input
-                        type="text"
-                        placeholder="Buscar cliente..."
-                        className="w-full pl-9 pr-8 p-4 bg-slate-50 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
-                        value={custSearch || (formData.customerId ? (customers.find(c => c.id === formData.customerId)?.companyName || '') : '')}
-                        onFocus={() => { setCustDropOpen(true); setCustSearch(''); }}
-                        onChange={e => { setCustSearch(e.target.value); setCustDropOpen(true); if (!e.target.value) setFormData(prev => ({ ...prev, customerId: '' })); }}
-                      />
-                      {(formData.customerId || custSearch) && (
-                        <button className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10" onClick={() => { setFormData(prev => ({ ...prev, customerId: '' })); setCustSearch(''); setCustDropOpen(false); }}><X size={13} /></button>
-                      )}
-                      {custDropOpen && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-30 max-h-52 overflow-y-auto">
-                          {filteredCustomers.length === 0 ? (
-                            <p className="text-xs text-slate-400 text-center py-4">Nenhum cliente encontrado.</p>
-                          ) : filteredCustomers.map(c => (
-                            <button key={c.id} onClick={() => { setFormData(prev => ({ ...prev, customerId: c.id })); setCustSearch(c.companyName); setCustDropOpen(false); }}
-                              className={`w-full flex flex-col px-4 py-3 hover:bg-blue-50 text-left transition ${formData.customerId === c.id ? 'bg-blue-50' : ''}`}>
-                              <span className="text-sm font-bold text-slate-800">{c.companyName}</span>
-                              {c.tradeName && <span className="text-[10px] text-slate-400 uppercase">{c.tradeName}</span>}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <button onClick={() => setShowNewCust(true)} title="Cadastrar novo cliente" className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl font-black text-[10px] transition shadow-sm whitespace-nowrap">
-                      <UserPlus size={14} /> Novo
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400">Título da Solução</label>
-                  <select className="w-full p-4 bg-slate-50 rounded-xl font-bold" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })}>
-                    <option value="">Selecione...</option>
-                    {masterData.solutionTitles.map(t => <option key={t.id} value={t.title}>{t.title}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="pt-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 block text-center mb-4">Modelo de Precificação</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {Object.values(PricingModel).map(m => (
-                    <button key={m} onClick={() => setFormData({ ...formData, pricingModel: m })}
-                      className={`p-4 rounded-xl border-2 font-black text-xs transition-all ${formData.pricingModel === m ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 text-slate-300 hover:border-slate-200'}`}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── STEP 2 ── */}
-          {step === 2 && (
-            <div className="space-y-5">
-              <div className="flex justify-between items-center border-b pb-4">
-                <h3 className="font-black text-slate-800 uppercase text-sm">Configuração dos Equipamentos</h3>
-                <div className="flex gap-2">
-                  <button onClick={() => setFormData(prev => ({ ...prev, items: [...prev.items, newBlankItem(true)] }))}
-                    className="bg-amber-500 text-white px-3 py-2 rounded-lg font-black text-[10px] flex items-center gap-1">
-                    <Star size={11} /> ÍTEM EXTRA
-                  </button>
-                  <button onClick={() => setFormData(prev => ({ ...prev, items: [...prev.items, newBlankItem(false)] }))}
-                    className="bg-blue-600 text-white px-3 py-2 rounded-lg font-black text-[10px]">+ ITEM</button>
-                </div>
-              </div>
-
-              {/* ── Toggle Franquia Global / Individual (só Outsourcing) ── */}
-              {formData.pricingModel === PricingModel.OUTSOURCING && (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Modo de Franquia</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Escolha como a franquia de páginas é aplicada</p>
-                    </div>
-                    <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                      <button
-                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'individual' }))}
-                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode !== 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
-                        Individual
-                      </button>
-                      <button
-                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'global' }))}
-                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode === 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
-                        Global
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Campos Globais */}
-                  {formData.franchiseMode === 'global' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
-                      <div className="p-3 bg-white rounded-xl border border-slate-100 col-span-2 space-y-2">
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Franquia Global</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
-                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))} />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 col-span-2 space-y-2">
-                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Colorido — Franquia Global</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
-                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Busca de equipamentos */}
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Filtrar equipamentos por marca, modelo ou tipo..."
-                  className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
-                  value={eqSearch}
-                  onChange={e => setEqSearch(e.target.value)}
-                />
-                {eqSearch && (
-                  <button onClick={() => setEqSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                    <X size={13} />
-                  </button>
-                )}
-                {eqSearch && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto">
-                    {filteredEquipments.length === 0 ? (
-                      <p className="text-xs text-slate-400 text-center py-4">Nenhum equipamento encontrado.</p>
-                    ) : (
-                      filteredEquipments.map(eq => (
-                        <button
-                          key={eq.id}
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              items: [...prev.items, { ...newBlankItem(false), equipmentId: eq.id }]
-                            }));
-                            setEqSearch('');
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-blue-50 text-left transition"
-                        >
-                          {eq.imageUrl
-                            ? <img src={eq.imageUrl} className="w-8 h-8 object-contain rounded-lg bg-slate-50 border border-slate-100" alt={eq.model} />
-                            : <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center"><Printer size={14} className="text-slate-400" /></div>
-                          }
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-800 truncate">{eq.brand} {eq.model}</p>
-                            <p className="text-[10px] text-slate-400 uppercase tracking-wide">{eq.type}{eq.isColor ? ' · Colorido' : ' · P&B'}</p>
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {formData.items.length === 0 && (
-                <div className="text-center py-12 text-slate-300">
-                  <p className="text-sm">Adicione equipamentos ou ítens extras acima.</p>
-                </div>
-              )}
-
-              {formData.items.map((item, idx) => {
-                const eq = equipments.find(e => e.id === item.equipmentId);
-                const isColor = eq?.isColor || false;
-                const isOutsourcing = formData.pricingModel === PricingModel.OUTSOURCING;
-                const isVenda = formData.pricingModel === PricingModel.VENDA;
-                const isClique = formData.pricingModel === PricingModel.CLIQUE;
-                const subtotal = isVenda ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity;
-
-                if (item.isExtra) {
-                  return (
-                    <div key={idx} className="p-5 bg-amber-50 rounded-2xl border border-amber-200 relative">
-                      <button onClick={() => removeItem(idx)} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={15} /></button>
-                      <div className="flex items-center gap-2 mb-4">
-                        <Star size={13} className="text-amber-500" />
-                        <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Ítem Extra</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                        <div className="sm:col-span-3">
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Descrição</label>
-                          <input type="text" placeholder="Ex: Suporte técnico, Instalação..." className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-amber-200" value={item.extraDescription || ''} onChange={e => updateItem(idx, { extraDescription: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Qtd</label>
-                          <input type="number" className="w-full p-3 bg-white rounded-xl font-bold text-sm border border-amber-200" value={item.quantity} onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} />
-                        </div>
-                        <div className="sm:col-span-2">
-                          {isVenda && (<>
-                            <label className="text-[9px] font-black text-blue-600 uppercase">Valor Unitário (R$)</label>
-                            <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
-                          </>)}
-                          {(isOutsourcing || isClique) && (<>
-                            <label className="text-[9px] font-black text-amber-600 uppercase">Valor Mensal (R$)</label>
-                            <input type="number" className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-amber-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                          </>)}
-                        </div>
-                        <div className="sm:col-span-4">
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Observação (opcional)</label>
-                          <textarea rows={2} className="w-full p-3 bg-white border border-amber-200 rounded-xl text-sm resize-none" placeholder="Texto para aparecer na proposta..." value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
-                        </div>
-                        {!isClique && (
-                          <div className="sm:col-span-4 flex justify-end">
-                            <span className="text-[10px] font-black text-slate-400">Subtotal: <span className="text-slate-700">{fmt(subtotal)}</span></span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={idx} className="p-5 bg-slate-50 rounded-2xl border border-slate-100 relative">
-                    <button onClick={() => removeItem(idx)} className="absolute top-4 right-4 text-red-400 hover:text-red-600"><Trash2 size={15} /></button>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-                      <div className="sm:col-span-3">
-                        <label className="text-[9px] font-black text-slate-400 uppercase">Hardware</label>
-                        <select className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.equipmentId} onChange={e => updateItem(idx, { equipmentId: e.target.value })}>
-                          {(eqSearch ? filteredEquipments : equipments).map(e => <option key={e.id} value={e.id}>{e.brand} {e.model}{e.isColor ? ' (Cor)' : ' (P&B)'}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-black text-slate-400 uppercase">Qtd</label>
-                        <input type="number" className="w-full p-3 bg-white rounded-xl font-bold text-sm" value={item.quantity} onChange={e => updateItem(idx, { quantity: parseInt(e.target.value) || 1 })} />
-                      </div>
-                    </div>
-
-                    <div className="border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {isVenda && (
-                        <div className="sm:col-span-2">
-                          <label className="text-[9px] font-black text-blue-600 uppercase">Preço Unitário de Venda (R$)</label>
-                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                      )}
-
-                      {isOutsourcing && (<>
-                        <div className="sm:col-span-2">
-                          <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
-                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                        </div>
-
-                        {/* Franquia — Individual apenas */}
-                        {formData.franchiseMode === 'individual' && (<>
-                        {/* P&B */}
-                        <div className="p-3 bg-white rounded-xl border border-slate-100 space-y-2">
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Monocromático</p>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
-                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoFranchise || 0} onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. P&B (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                        </div>
-                        {/* Cor */}
-                        <div className={`p-3 rounded-xl border space-y-2 ${isColor ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100 opacity-40 pointer-events-none'}`}>
-                          <p className={`text-[9px] font-black uppercase tracking-widest ${isColor ? 'text-blue-500' : 'text-slate-400'}`}>
-                            Colorido {!isColor && '(N/D neste equipamento)'}
-                          </p>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
-                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorFranchise || 0} onChange={e => updateItem(idx, { colorFranchise: parseInt(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                        </div>
-                        </>)}
-
-                      {isClique && (<>
-                        <div className="sm:col-span-2">
-                          <label className="text-[9px] font-black text-emerald-600 uppercase">Valor de Gestão/Mensal (R$)</label>
-                          <input type="number" className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Pág. Prod. P&B (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        {isColor && (
-                          <div>
-                            <label className="text-[9px] font-black text-blue-500 uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                        )}
-                      </>)}
-
-                      <div className="sm:col-span-2">
-                        <label className="text-[9px] font-black text-slate-400 uppercase">Observação do Ítem (opcional)</label>
-                        <textarea rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm resize-none" placeholder="Texto descritivo para aparecer na proposta..." value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
-                      </div>
-                    </div>
-
-                    {!isClique && (
-                      <div className="flex justify-end mt-2">
-                        <span className="text-[10px] font-black text-slate-400">Subtotal: <span className="text-slate-700 text-sm">{fmt(subtotal)}</span></span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {formData.items.length > 0 && (
-                totalLabel
-                  ? <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase text-blue-400">{totalLabel}</span>
-                      <span className="text-2xl font-black text-white">{fmt(formData.totalValue)}</span>
-                    </div>
-                  : <div className="bg-emerald-900 rounded-2xl p-5 flex items-center justify-center">
-                      <span className="text-[10px] font-black uppercase text-emerald-300">Contrato de Clique — cobrança por página produzida</span>
-                    </div>
-              )}
-            </div>
-          )}
-
-          {/* ── STEP 3 ── */}
-          {step === 3 && (
-            <div className="space-y-6 animate-in fade-in">
-              {totalLabel ? (
-                <div className="bg-slate-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-blue-400 mb-1">{totalLabel}</p>
-                    <h3 className="text-4xl sm:text-5xl font-black">{fmt(formData.totalValue)}</h3>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl text-right">
-                    <p className="text-[9px] font-black uppercase text-slate-300">Modelo</p>
-                    <p className="font-black text-blue-300 text-sm">{formData.pricingModel}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-emerald-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-emerald-400 mb-1">Modelo Ativo</p>
-                    <h3 className="text-2xl font-black text-emerald-200">{formData.pricingModel}</h3>
-                    <p className="text-[10px] text-emerald-400 mt-1">Cobrança por clique — sem valor total fixo</p>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl">
-                    <p className="text-[9px] font-black uppercase text-slate-300">{formData.items.length} ítens</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Resumo ítens */}
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 block mb-2">Resumo dos Ítens</label>
-                <div className="space-y-2">
-                  {formData.items.map((item, idx) => {
-                    const eq = equipments.find(e => e.id === item.equipmentId);
-                    const label = item.isExtra ? (item.extraDescription || 'Ítem Extra') : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
-                    const sub = formData.pricingModel === PricingModel.VENDA ? (item.unitValue || 0) * item.quantity : (item.monthlyValue || 0) * item.quantity;
-                    return (
-                      <div key={idx} className={`flex justify-between items-center p-3 rounded-xl text-sm ${item.isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {item.isExtra && <Star size={11} className="text-amber-500 shrink-0" />}
-                          <span className="font-bold text-slate-700 truncate">{item.quantity}× {label}</span>
-                          {item.itemNote && <span className="text-[10px] text-slate-400 italic ml-1 hidden sm:inline truncate">— {item.itemNote}</span>}
-                        </div>
-                        {formData.pricingModel !== PricingModel.CLIQUE
-                          ? <span className="font-black text-slate-800 ml-4 shrink-0">{fmt(sub)}</span>
-                          : <span className="text-[9px] text-slate-400 ml-4 shrink-0 uppercase">por clique</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ── Condições Comerciais com filtro ── */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-black uppercase text-slate-400">Condições Comerciais</label>
-                  {(formData.selectedConditions?.length ?? 0) > 0 && (
-                    <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">
-                      {formData.selectedConditions?.length} selecionada(s)
-                    </span>
-                  )}
-                </div>
-
-                {/* Campo de busca */}
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Buscar condição..."
-                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition"
-                    value={condSearch}
-                    onChange={e => setCondSearch(e.target.value)}
-                  />
-                  {condSearch && (
-                    <button onClick={() => setCondSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto p-3 border-2 border-slate-50 rounded-2xl">
-                  {filteredConditions.length === 0 && (
-                    <div className="col-span-2 text-center py-4 text-slate-300 text-xs">Nenhuma condição encontrada.</div>
-                  )}
-                  {filteredConditions.map(c => {
-                    const sel = formData.selectedConditions?.includes(c.id);
-                    return (
-                      <button key={c.id}
-                        onClick={() => {
-                          const cur = formData.selectedConditions || [];
-                          const next = sel ? cur.filter(x => x !== c.id) : [...cur, c.id];
-                          setFormData({ ...formData, selectedConditions: next });
-                        }}
-                        className={`p-3 rounded-xl text-left text-[10px] font-bold border-2 transition-all ${sel ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-50 text-slate-400 hover:border-slate-200'}`}>
-                        {c.condition}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-4 rounded-xl text-sm font-bold">
-                  <AlertCircle size={16} /> {error}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-slate-50 p-5 sm:p-6 flex justify-between border-t border-slate-100">
-          <button onClick={() => step > 1 ? setStep(step - 1) : navigate('/proposals')}
-            className="px-6 font-black text-slate-400 uppercase text-[10px] tracking-widest hover:text-slate-600 transition">
-            {step === 1 ? 'Cancelar' : '← Voltar'}
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setFilterOpen(o => !o)}
+            className={`relative flex items-center gap-2 font-bold py-2.5 px-4 rounded-xl text-sm transition border shadow-sm ${filterOpen || activeCount > 0 ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+            <Filter size={15} /> Filtros
+            {activeCount > 0 && <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">{activeCount}</span>}
           </button>
-          <button onClick={() => step < 3 ? setStep(step + 1) : handleSave()} disabled={isSaving}
-            className="bg-blue-600 text-white px-8 py-3 rounded-xl font-black hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-100 uppercase text-[10px] tracking-widest disabled:opacity-60">
-            {isSaving ? 'Gravando...' : step < 3 ? 'Próximo →' : 'Gerar Proposta Final'}
+          <button onClick={() => navigate('/proposals/new')} className="bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 px-5 rounded-xl flex items-center gap-2 transition shadow-xl shadow-blue-100 text-sm">
+            <PlusCircle size={18} /> Novo Projeto
           </button>
         </div>
       </div>
 
-      {/* ── Modal: Cadastrar Novo Cliente ── */}
-      {showNewCust && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[36px] w-full max-w-xl overflow-hidden shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            <div className="bg-slate-50 px-8 py-5 flex items-center justify-between border-b">
-              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><UserPlus size={14} /> Cadastrar Novo Cliente</h3>
-              <button onClick={() => setShowNewCust(false)} className="bg-white p-2 rounded-xl text-slate-400 shadow-sm"><X size={18} /></button>
-            </div>
-            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1 col-span-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Razão Social *</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.companyName} onChange={e => setNewCust(p => ({ ...p, companyName: e.target.value }))} placeholder="Nome da Empresa LTDA" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nome Fantasia</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.tradeName} onChange={e => setNewCust(p => ({ ...p, tradeName: e.target.value }))} placeholder="Nome Curto" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Responsável</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.contactName} onChange={e => setNewCust(p => ({ ...p, contactName: e.target.value }))} placeholder="João da Silva" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Telefone</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.phone} onChange={e => setNewCust(p => ({ ...p, phone: e.target.value }))} placeholder="(21) 9000-0000" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">E-mail</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.email} onChange={e => setNewCust(p => ({ ...p, email: e.target.value }))} placeholder="contato@empresa.com" />
-                </div>
-                <div className="space-y-1 col-span-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logradouro</label>
-                  <div className="flex gap-2">
-                    <input className="flex-1 p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.address} onChange={e => setNewCust(p => ({ ...p, address: e.target.value }))} placeholder="Av. Brasil" />
-                    <input className="w-24 p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.number} onChange={e => setNewCust(p => ({ ...p, number: e.target.value }))} placeholder="Nº" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bairro</label>
-                  <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.neighborhood} onChange={e => setNewCust(p => ({ ...p, neighborhood: e.target.value }))} placeholder="Centro" />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cidade</label>
-                    <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500" value={newCust.city} onChange={e => setNewCust(p => ({ ...p, city: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">UF</label>
-                    <input className="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 uppercase" maxLength={2} value={newCust.state} onChange={e => setNewCust(p => ({ ...p, state: e.target.value }))} />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="p-6 bg-slate-50 border-t flex justify-end gap-3">
-              <button onClick={() => setShowNewCust(false)} className="px-6 py-3 font-black text-slate-400 hover:text-slate-700 uppercase text-[10px] tracking-widest transition">Cancelar</button>
-              <button onClick={handleSaveNewCust} disabled={savingCust} className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-lg shadow-green-100 uppercase text-[10px] tracking-widest disabled:opacity-60">
-                <Save size={14} /> {savingCust ? 'Salvando...' : 'Salvar e Selecionar'}
+      {/* Painel de filtros */}
+      {filterOpen && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-slate-700 text-sm uppercase tracking-wider flex items-center gap-2"><Filter size={13} /> Filtrar Propostas</h3>
+            {activeCount > 0 && (
+              <button onClick={() => setFilters(EMPTY)} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-wider flex items-center gap-1">
+                <X size={11} /> Limpar
               </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Busca */}
+            <div className="lg:col-span-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Busca</label>
+              <div className="relative">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input type="text" placeholder="Código, empresa, título..." className="w-full pl-8 pr-3 p-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.search} onChange={e => setF('search', e.target.value)} />
+              </div>
+            </div>
+            {/* Consultor (só ADMIN) */}
+            {user.role === 'ADMIN' && (
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Consultor</label>
+                <div className="relative">
+                  <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.sellerId} onChange={e => setF('sellerId', e.target.value)}>
+                    <option value="">Todos</option>
+                    {allUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            )}
+            {/* Cliente */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cliente</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.customerId} onChange={e => setF('customerId', e.target.value)}>
+                  <option value="">Todos</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            {/* Modelo */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Modelo</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.pricingModel} onChange={e => setF('pricingModel', e.target.value)}>
+                  <option value="">Todos</option>
+                  {Object.values(PricingModel).map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+            {/* Status */}
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status</label>
+              <div className="relative">
+                <select className="w-full p-2.5 bg-slate-50 rounded-xl font-bold text-sm appearance-none pr-7 border border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-400" value={filters.status} onChange={e => setF('status', e.target.value)}>
+                  <option value="">Todos</option>
+                  {Object.values(ProposalStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
+          {/* Chips */}
+          {activeCount > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+              {filters.search && <Chip label={`"${filters.search}"`} onRemove={() => setF('search', '')} />}
+              {filters.sellerId && <Chip label={`Consultor: ${allUsers.find(u => u.id === filters.sellerId)?.name || '—'}`} onRemove={() => setF('sellerId', '')} />}
+              {filters.customerId && <Chip label={`Cliente: ${customers.find(c => c.id === filters.customerId)?.companyName || '—'}`} onRemove={() => setF('customerId', '')} />}
+              {filters.pricingModel && <Chip label={`Modelo: ${filters.pricingModel}`} onRemove={() => setF('pricingModel', '')} />}
+              {filters.status && <Chip label={`Status: ${filters.status}`} onRemove={() => setF('status', '')} />}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tabela */}
+      {filtered.length === 0 ? (
+        <div className="text-center py-20 text-slate-300 bg-white rounded-[40px] border border-slate-100">
+          <FileText className="mx-auto mb-4 opacity-20" size={56} />
+          <p className="text-sm font-medium">{proposals.length === 0 ? 'Nenhuma proposta criada ainda.' : 'Nenhuma proposta com esses filtros.'}</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-[40px] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between px-8 py-4 border-b border-slate-50 gap-3">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {filtered.length} proposta(s){activeCount > 0 ? ' filtrada(s)' : ''}
+            </span>
+            {/* Somatório por modelo nos resultados filtrados */}
+            <div className="flex flex-wrap gap-3">
+              {(() => {
+                const vendaTotal = filtered.filter(p => p.pricingModel === PricingModel.VENDA).reduce((a, p) => a + p.totalValue, 0);
+                const outsTotal = filtered.filter(p => p.pricingModel === PricingModel.OUTSOURCING).reduce((a, p) => a + p.totalValue, 0);
+                const cliqQty = filtered.filter(p => p.pricingModel === PricingModel.CLIQUE).length;
+                return (
+                  <>
+                    {vendaTotal > 0 && (
+                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                        Venda: {formatCurrency(vendaTotal)}
+                      </span>
+                    )}
+                    {outsTotal > 0 && (
+                      <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">
+                        Outsourcing/mês: {formatCurrency(outsTotal)}
+                      </span>
+                    )}
+                    {cliqQty > 0 && (
+                      <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                        Clique: {cliqQty} proposta(s)
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-100">
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Código</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Empresa / Negócio</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Investimento</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filtered.map(p => {
+                  const customer = getCustomer(p.customerId);
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/50 transition-all group">
+                      <td className="px-6 py-5">
+                        <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">{p.code}</span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-sm font-black text-slate-800">{customer?.companyName || 'N/A'}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{p.title}</p>
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-sm font-black text-slate-700">
+                          {p.pricingModel === PricingModel.CLIQUE
+                            ? '— Por Clique'
+                            : formatCurrency(p.totalValue)}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{p.pricingModel}</p>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest ${p.status === ProposalStatus.FECHADO ? 'bg-emerald-100 text-emerald-700' : p.status === ProposalStatus.ABERTO ? 'bg-blue-100 text-blue-700' : p.status === ProposalStatus.EM_NEGOCIACAO ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{p.status}</span>
+                      </td>
+                      <td className="px-6 py-5 text-right space-x-1">
+                        <button onClick={() => handleDuplicate(p)} className="p-2.5 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Duplicar"><Copy size={16} /></button>
+                        <button onClick={() => navigate(`/proposals/edit/${p.id}`)} className="p-2.5 text-slate-300 hover:text-blue-600 transition rounded-xl hover:bg-white hover:shadow-md" title="Editar"><Edit size={16} /></button>
+                        <button onClick={() => generatePDF(p)} disabled={generating === p.id} className={`p-2.5 transition rounded-xl ${generating === p.id ? 'text-blue-600' : 'text-slate-300 hover:text-emerald-600 hover:bg-white hover:shadow-md'}`} title="Baixar PDF">{generating === p.id ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}</button>
+                        <button onClick={() => handleDelete(p.id)} className="p-2.5 text-slate-300 hover:text-red-500 transition rounded-xl hover:bg-white hover:shadow-md" title="Excluir"><Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TEMPLATE DO PDF */}
+      {activeProp && (
+        <div className="pdf-template" ref={pdfRef}>
+
+          {/* PÁGINA 1: CAPA */}
+          <div className="pdf-page flex flex-col items-center justify-end pb-24 relative bg-white overflow-hidden">
+            {masterData.layoutImages.cover && <img src={masterData.layoutImages.cover} className="w-full h-full object-cover absolute inset-0" alt="Capa" />}
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <h2 className="text-2xl font-medium text-slate-700 uppercase tracking-[0.2em] mb-1">Proposta Comercial</h2>
+              <p className="text-4xl font-black text-slate-900 font-montserrat uppercase tracking-tight mb-4">Nº {activeProp.code}</p>
+            </div>
+          </div>
+
+          {/* PÁGINA 2: APRESENTAÇÃO */}
+          <div className="pdf-page flex flex-col items-center justify-center relative bg-white overflow-hidden">
+            {masterData.layoutImages.intro && <img src={masterData.layoutImages.intro} className="w-full h-full object-cover absolute inset-0" alt="Apresentação" />}
+          </div>
+
+          {/* PÁGINAS DE EQUIPAMENTOS — 2 itens por página (itens normais) */}
+          {(() => {
+            // Separa equipamentos normais de ítens extras
+            const normalItems = activeProp.items.filter(i => !i.isExtra);
+            const extraItems = activeProp.items.filter(i => i.isExtra);
+
+            const chunks: typeof activeProp.items[] = [];
+            for (let i = 0; i < normalItems.length; i += 2) {
+              chunks.push(normalItems.slice(i, i + 2));
+            }
+
+            return chunks.map((chunk, pageIdx) => (
+              <div key={pageIdx} className="pdf-page flex flex-col p-16 bg-white relative">
+                {masterData.layoutImages.background && (
+                  <img src={masterData.layoutImages.background} className="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none" alt="Fundo" />
+                )}
+                <div className="relative z-10 flex-1 flex flex-col">
+                  <div className="flex justify-center mb-8">
+                    <div className="text-[#00AEEF] text-3xl font-black font-montserrat tracking-tighter uppercase">DATICOPY</div>
+                  </div>
+
+                  {pageIdx === 0 && (
+                    <div className="mb-10 flex flex-col items-center">
+                      <div className="bg-slate-50/50 backdrop-blur-sm p-8 rounded-[32px] border border-slate-100 w-full text-center shadow-sm">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{formatFullDate(activeProp.date)}</p>
+                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-[0.4em] mb-3">Proposta Comercial Preparada Para:</p>
+                        <h1 className="text-2xl font-black text-slate-900 font-montserrat uppercase tracking-tighter leading-tight mb-2">
+                          {getCustomer(activeProp.customerId)?.companyName}
+                        </h1>
+                        <div className="flex items-center justify-center gap-2 text-slate-500 font-bold uppercase text-[10px] tracking-widest border-t border-slate-100 mt-3 pt-3">
+                          <UserIcon size={12} className="text-blue-500" />
+                          <span>A/C: {getCustomer(activeProp.customerId)?.contactName}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-10 flex-1">
+                    {chunk.map((item, idx) => {
+                      const globalIdx = (pageIdx * 2) + idx;
+                      const eq = equipments.find(e => e.id === item.equipmentId);
+                      const itemSubtotal = activeProp.pricingModel === PricingModel.VENDA
+                        ? (item.unitValue || 0) * item.quantity
+                        : (item.monthlyValue || 0) * item.quantity;
+
+                      return (
+                        <div key={globalIdx} className="space-y-4">
+                          {/* Cabeçalho do ítem */}
+                          <div className="bg-[#00f2ff]/20 p-3 border-l-8 border-[#FFFF00] rounded-r-xl flex justify-between items-center">
+                            <p className="text-slate-900 font-bold text-xs leading-tight">
+                              Tipo {globalIdx + 1}) {eq?.title} ({item.quantity} unidade(s))
+                            </p>
+                            {/* Valor do ítem — apenas se não for Clique */}
+                            {activeProp.pricingModel !== PricingModel.CLIQUE && (
+                              <div className="text-right">
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">
+                                  {activeProp.pricingModel === PricingModel.VENDA ? 'Valor Unitário' : 'Valor Mensal'}
+                                </p>
+                                <p className="text-sm font-black text-slate-800">
+                                  {activeProp.pricingModel === PricingModel.VENDA
+                                    ? formatCurrency(item.unitValue || 0)
+                                    : formatCurrency(item.monthlyValue || 0)}
+                                  {item.quantity > 1 && (
+                                    <span className="text-[9px] text-slate-400 font-bold ml-1">× {item.quantity} = {formatCurrency(itemSubtotal)}</span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-center">
+                            <h3 className="text-[#00AEEF] text-base font-bold uppercase tracking-tight">
+                              {eq?.type} {eq?.model}
+                            </h3>
+                          </div>
+
+                          <div className="flex gap-8 items-start">
+                            <div className="w-1/3 aspect-square bg-white border border-slate-100 rounded-3xl flex items-center justify-center p-3">
+                              {eq?.imageUrl ? <img src={eq.imageUrl} className="w-full h-full object-contain mix-blend-multiply" alt={eq.model} /> : <Printer size={40} className="text-slate-200" />}
+                            </div>
+                            <div className="w-2/3 flex flex-col gap-2">
+                              <p className="text-slate-700 text-[11px] leading-relaxed text-justify font-medium">{eq?.specs}</p>
+                              {/* Texto / observação do ítem */}
+                              {item.itemNote && (
+                                <p className="text-[10px] text-slate-500 italic border-l-2 border-blue-200 pl-3 mt-1">{item.itemNote}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-auto pt-6 border-t border-slate-100 text-[9px] text-center text-slate-400 italic font-bold">
+                    Daticopy Comércio e Representações LTDA - Rua Alm. Ari Parreiras, 355 - Rocha, Rio de Janeiro - RJ – Tel.: (21) 2582-2700 - www.daticopyrj.com.br
+                  </div>
+                </div>
+              </div>
+            ));
+          })()}
+
+          {/* PÁGINA DE ÍTENS EXTRAS (se houver) */}
+          {activeProp.items.some(i => i.isExtra) && (() => {
+            const extraItems = activeProp.items.filter(i => i.isExtra);
+            return (
+              <div className="pdf-page flex flex-col p-16 bg-white relative">
+                {masterData.layoutImages.background && (
+                  <img src={masterData.layoutImages.background} className="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none" alt="Fundo" />
+                )}
+                <div className="relative z-10 flex-1 flex flex-col">
+                  <div className="flex justify-center mb-8">
+                    <div className="text-[#00AEEF] text-3xl font-black font-montserrat tracking-tighter uppercase">DATICOPY</div>
+                  </div>
+
+                  <h2 className="text-[#00AEEF] text-xl font-black uppercase mb-6 border-l-8 border-[#00AEEF] pl-4">
+                    Ítens Adicionais
+                  </h2>
+
+                  <div className="space-y-4">
+                    {extraItems.map((item, idx) => {
+                      const itemValue = activeProp.pricingModel === PricingModel.VENDA
+                        ? (item.unitValue || 0) * item.quantity
+                        : (item.monthlyValue || 0) * item.quantity;
+
+                      return (
+                        <div key={idx} className="bg-amber-50/60 border border-amber-200 rounded-2xl p-5">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-amber-400 mt-1"></div>
+                              <p className="font-black text-slate-800 text-sm">
+                                {item.quantity}× {item.extraDescription || 'Ítem Extra'}
+                              </p>
+                            </div>
+                            {activeProp.pricingModel !== PricingModel.CLIQUE && (
+                              <div className="text-right">
+                                {item.quantity > 1 && (
+                                  <p className="text-[9px] text-slate-400">
+                                    {activeProp.pricingModel === PricingModel.VENDA
+                                      ? formatCurrency(item.unitValue || 0)
+                                      : formatCurrency(item.monthlyValue || 0)} × {item.quantity}
+                                  </p>
+                                )}
+                                <p className="font-black text-slate-800">{formatCurrency(itemValue)}</p>
+                              </div>
+                            )}
+                          </div>
+                          {item.itemNote && (
+                            <p className="text-[10px] text-slate-500 italic border-l-2 border-amber-300 pl-3 mt-2">{item.itemNote}</p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-auto pt-6 border-t border-slate-100 text-[9px] text-center text-slate-400 italic font-bold">
+                    Daticopy Comércio e Representações LTDA - Rua Alm. Ari Parreiras, 355 - Rocha, Rio de Janeiro - RJ – Tel.: (21) 2582-2700 - www.daticopyrj.com.br
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* PÁGINA FINAL: CONDIÇÕES COMERCIAIS */}
+          <div className="pdf-page flex flex-col p-16 bg-white relative">
+            {masterData.layoutImages.background && <img src={masterData.layoutImages.background} className="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none" alt="Fundo" />}
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex justify-between items-center mb-10 border-b-2 border-slate-50 pb-6">
+                <div className="text-[#00AEEF] text-3xl font-black font-montserrat tracking-tighter uppercase">DATICOPY</div>
+              </div>
+
+              <h2 className="text-[#00AEEF] text-2xl font-black uppercase mb-8 border-l-8 border-[#00AEEF] pl-6">CONDIÇÕES COMERCIAIS</h2>
+
+              <div className="border-2 border-slate-100 rounded-[40px] overflow-hidden mb-8 shadow-sm bg-white/80 backdrop-blur-sm">
+                <div className="bg-[#eff6ff]/50 p-6 text-[#1e40af] font-black uppercase text-sm border-b-2 border-slate-100 flex items-center gap-3">
+                  <div className="w-2 h-6 bg-[#00AEEF] rounded-full"></div>
+                  Investimento em {activeProp.pricingModel}
+                </div>
+
+                <div className="divide-y-2 divide-slate-50">
+
+                  {/* ── RESUMO POR ÍTEM ── */}
+                  <div className="p-6 px-8">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
+                    <div className="space-y-2">
+                      {activeProp.items.map((item, idx) => {
+                        const eq = equipments.find(e => e.id === item.equipmentId);
+                        const isExtra = item.isExtra;
+                        const label = isExtra
+                          ? (item.extraDescription || 'Ítem Extra')
+                          : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
+                        const itemSubtotal = activeProp.pricingModel === PricingModel.VENDA
+                          ? (item.unitValue || 0) * item.quantity
+                          : (item.monthlyValue || 0) * item.quantity;
+
+                        return (
+                          <div key={idx} className={`flex justify-between items-center py-2 px-3 rounded-xl text-xs ${isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {isExtra && <span className="text-amber-500 text-[9px] font-black uppercase">★ Extra</span>}
+                              <span className="font-bold text-slate-700">{item.quantity}× {label}</span>
+                              {item.itemNote && <span className="text-[9px] text-slate-400 italic ml-1">— {item.itemNote}</span>}
+                            </div>
+                            {activeProp.pricingModel !== PricingModel.CLIQUE ? (
+                              <span className="font-black text-slate-800">{formatCurrency(itemSubtotal)}</span>
+                            ) : (
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">por clique</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* ── TOTAL (apenas Venda e Outsourcing) ── */}
+                  {getTotalLabel(activeProp.pricingModel) && (
+                    <div className="p-8 flex justify-between items-center bg-slate-50/50">
+                      <span className="text-slate-500 font-black uppercase text-[11px] tracking-widest">
+                        {getTotalLabel(activeProp.pricingModel)}:
+                      </span>
+                      <span className="font-black text-3xl text-slate-900 font-montserrat tracking-tighter">
+                        {formatCurrency(activeProp.totalValue)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* ── CLIQUE: só mostra preços por página, sem total ── */}
+                  {activeProp.pricingModel === PricingModel.CLIQUE && (() => {
+                    const breakdown = getProposalBreakdown(activeProp);
+                    return (
+                      <div className="p-6 px-8 bg-emerald-50/30">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3">Preço por Página Produzida</p>
+                        {breakdown.mono.clickRate > 0 && (
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-slate-500 font-bold text-xs">P&B (Monocromática):</span>
+                            <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(3)}</span>
+                          </div>
+                        )}
+                        {breakdown.color.clickRate > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-blue-500 font-bold text-xs">Colorida:</span>
+                            <span className="font-black text-blue-700">R$ {breakdown.color.clickRate.toFixed(3)}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── OUTSOURCING: franquias ── */}
+                  {activeProp.pricingModel === PricingModel.OUTSOURCING && (() => {
+                    const breakdown = getProposalBreakdown(activeProp);
+                    return (
+                      <>
+                        {breakdown.mono.totalFranchise > 0 && (
+                          <div className="p-6 px-8 bg-slate-50/20">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                              Impressão Monocromática {breakdown.isGlobal && <span className="ml-1 bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
+                            </p>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-slate-500 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
+                              <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                            </div>
+                            {breakdown.mono.excessRate > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 font-bold text-xs">Excedente:</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {breakdown.color.totalFranchise > 0 && (
+                          <div className="p-6 px-8 bg-blue-50/10">
+                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">
+                              Impressão Colorida {breakdown.isGlobal && <span className="ml-1 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
+                            </p>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-blue-600 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
+                              <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                            </div>
+                            {breakdown.color.excessRate > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-blue-500 font-bold text-xs">Excedente:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* CONDIÇÕES SELECIONADAS */}
+              {(activeProp.selectedConditions?.length ?? 0) > 0 && (
+                <div className="border-2 border-slate-100 rounded-[40px] overflow-hidden shadow-sm bg-white/80 backdrop-blur-sm mb-8">
+                  <div className="bg-[#f8fafc]/50 p-6 text-slate-800 font-black uppercase text-sm border-b-2 border-slate-100 flex items-center gap-3">
+                    <div className="w-2 h-6 bg-slate-400 rounded-full"></div>
+                    Condições Gerais
+                  </div>
+                  <div className="p-8 space-y-4">
+                    {activeProp.selectedConditions?.map(id => {
+                      const cond = masterData.commercialConditions.find(c => c.id === id);
+                      return cond ? (
+                        <div key={id} className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+                          <span className="text-xs font-black text-slate-700 uppercase">{cond.condition}</span>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ASSINATURA */}
+              {(() => {
+                const propSeller = getSeller(activeProp.sellerId) || user;
+                return (
+                  <div className="mt-auto flex justify-between items-end p-8 border-t-4 border-slate-50">
+                    <div className="space-y-1">
+                      <p className="font-black text-slate-900 text-lg font-montserrat">{propSeller.name}</p>
+                      <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{propSeller.title}</p>
+                      <p className="text-[#00AEEF] text-sm font-black underline">{propSeller.email}</p>
+                      <div className="flex gap-4 mt-2">
+                        {propSeller.phone && <p className="text-slate-600 text-[11px] font-bold"><span className="text-[#00AEEF] mr-1">T:</span> {propSeller.phone}</p>}
+                        {propSeller.mobile && <p className="text-slate-600 text-[11px] font-bold"><span className="text-[#00AEEF] mr-1">C:</span> {propSeller.mobile}</p>}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[#00AEEF] text-2xl font-black font-montserrat tracking-tighter">DATICOPY</div>
+                      <p className="text-slate-300 text-[9px] font-bold uppercase tracking-widest">Desde 1987</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
         </div>
       )}
     </div>
   );
 };
 
-export default ProposalEditor;
+const Chip: React.FC<{ label: string; onRemove: () => void }> = ({ label, onRemove }) => (
+  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black rounded-full uppercase tracking-wider">
+    {label}
+    <button onClick={onRemove} className="hover:text-red-500 transition"><X size={10} /></button>
+  </span>
+);
+
+export default ProposalList;
