@@ -106,7 +106,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
           const canvas = await html2canvas(page, {
-            scale: 2,
+            scale: 0.5,
             useCORS: true,
             logging: false,
             windowWidth: 794,
