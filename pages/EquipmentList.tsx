@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, Plus, Edit, Save, X, Upload, Trash2, Camera } from 'lucide-react';
+import { Printer, Plus, Edit, Save, X, Trash2, Camera, Lock } from 'lucide-react';
 import { storage } from '../services/storage';
-import { Equipment, User } from '../types';
+import { Equipment, User, UserRole } from '../types';
 
 const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentEq, setCurrentEq] = useState<Partial<Equipment>>({});
+
+  const isAdmin = user.role === UserRole.ADMIN;
 
   const loadData = async () => {
     setLoading(true);
@@ -18,38 +20,40 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
   useEffect(() => { loadData(); }, []);
 
   const handleNew = () => {
+    if (!isAdmin) { alert('Apenas administradores podem cadastrar equipamentos.'); return; }
     setCurrentEq({
       id: Math.random().toString(36).substr(2, 9),
-      type: '',
-      brand: '',
-      model: '',
-      title: '',
-      monthlyVolume: 0,
-      isColor: false,
-      imageUrl: '',
-      specs: ''
+      type: '', brand: '', model: '', title: '',
+      monthlyVolume: 0, isColor: false, imageUrl: '', specs: ''
     });
     setIsEditing(true);
   };
 
   const handleEdit = (eq: Equipment) => {
+    if (!isAdmin) { alert('Apenas administradores podem editar equipamentos.'); return; }
     setCurrentEq(eq);
     setIsEditing(true);
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este equipamento? Ele não aparecerá mais para novas propostas.')) {
+    if (!isAdmin) { alert('Apenas administradores podem excluir equipamentos.'); return; }
+    const eq = equipments.find(e => e.id === id);
+    if (window.confirm('Tem certeza que deseja excluir este equipamento?')) {
       await storage.deleteEquipment(id);
+      storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'equipamento', action: 'excluir', recordId: id, description: `Excluiu equipamento ${eq?.brand} ${eq?.model}` });
       await loadData();
     }
   };
 
   const handleSave = async () => {
+    if (!isAdmin) return;
     if (!currentEq.brand || !currentEq.model) {
       alert('Marca e Modelo são obrigatórios.');
       return;
     }
+    const isNew = !equipments.find(e => e.id === currentEq.id);
     await storage.saveEquipment(currentEq as Equipment);
+    storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'equipamento', action: isNew ? 'criar' : 'editar', recordId: currentEq.id!, description: `${isNew ? 'Cadastrou' : 'Editou'} equipamento ${currentEq.brand} ${currentEq.model}` });
     await loadData();
     setIsEditing(false);
   };
@@ -82,15 +86,22 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Catálogo de Hardware</h2>
-          <p className="text-slate-500 font-medium">Gestão técnica de ativos para composição de propostas.</p>
+          <p className="text-slate-500 font-medium">
+            {isAdmin ? 'Gestão técnica de ativos para composição de propostas.' : 'Consulta do catálogo de equipamentos disponíveis.'}
+          </p>
         </div>
-        <button
-          onClick={handleNew}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-10 rounded-2xl flex items-center gap-3 transition shadow-xl shadow-blue-100 uppercase text-xs tracking-widest"
-        >
-          <Plus size={20} />
-          Novo Equipamento
-        </button>
+        {isAdmin ? (
+          <button
+            onClick={handleNew}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-10 rounded-2xl flex items-center gap-3 transition shadow-xl shadow-blue-100 uppercase text-xs tracking-widest"
+          >
+            <Plus size={20} /> Novo Equipamento
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-xl text-xs font-bold">
+            <Lock size={14} /> Somente visualização
+          </div>
+        )}
       </div>
 
       {equipments.length === 0 && (
@@ -105,11 +116,7 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
           <div key={eq.id} className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden group hover:border-blue-200 transition-all">
             <div className="aspect-square bg-slate-50 relative overflow-hidden flex items-center justify-center p-8">
               {eq.imageUrl ? (
-                <img
-                  src={eq.imageUrl}
-                  alt={eq.model}
-                  className="w-full h-full object-contain group-hover:scale-110 transition duration-500"
-                />
+                <img src={eq.imageUrl} alt={eq.model} className="w-full h-full object-contain group-hover:scale-110 transition duration-500" />
               ) : (
                 <Printer size={64} className="text-slate-200" />
               )}
@@ -126,28 +133,29 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
               <p className="text-slate-500 font-bold text-xs uppercase tracking-widest mb-1">{eq.model}</p>
               <p className="text-blue-600 font-black text-[10px] uppercase tracking-tighter mb-4">{eq.title || 'Sem título comercial'}</p>
 
-              <div className="flex justify-between items-center pt-4 border-t border-slate-50">
-                <button
-                  onClick={() => handleEdit(eq)}
-                  className="p-3 bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition shadow-sm"
-                  title="Editar"
-                >
-                  <Edit size={18} />
-                </button>
-                <button
-                  onClick={() => handleDelete(eq.id)}
-                  className="p-3 bg-slate-50 text-slate-400 hover:bg-red-500 hover:text-white rounded-xl transition shadow-sm"
-                  title="Excluir"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
+              {/* Botões só para admin */}
+              {isAdmin ? (
+                <div className="flex justify-between items-center pt-4 border-t border-slate-50">
+                  <button onClick={() => handleEdit(eq)} className="p-3 bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white rounded-xl transition shadow-sm" title="Editar">
+                    <Edit size={18} />
+                  </button>
+                  <button onClick={() => handleDelete(eq.id)} className="p-3 bg-slate-50 text-slate-400 hover:bg-red-500 hover:text-white rounded-xl transition shadow-sm" title="Excluir">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="pt-4 border-t border-slate-50 flex items-center gap-2">
+                  <Lock size={11} className="text-slate-300" />
+                  <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Somente visualização</span>
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      {isEditing && (
+      {/* Modal de edição — só admin chega aqui */}
+      {isEditing && isAdmin && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 border border-slate-100">
             <div className="bg-slate-50 px-8 py-5 flex items-center justify-between border-b border-slate-100">
@@ -169,9 +177,7 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
                     </>
                   ) : (
                     <label className="cursor-pointer flex flex-col items-center gap-2">
-                      <div className="p-4 bg-white rounded-2xl shadow-sm text-blue-600">
-                        <Camera size={32} />
-                      </div>
+                      <div className="p-4 bg-white rounded-2xl shadow-sm text-blue-600"><Camera size={32} /></div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Foto</p>
                       <input type="file" className="hidden" accept="image/png, image/jpeg" onChange={handleImageUpload} />
                     </label>
@@ -187,7 +193,7 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
                     <input className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-blue-100 outline-none transition-all" value={currentEq.model} onChange={e => setCurrentEq({ ...currentEq, model: e.target.value })} placeholder="Ex: M3655idn" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1.5">Título do Equipamento (Comercial)</label>
+                    <label className="block text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1.5">Título Comercial</label>
                     <input className="w-full p-3.5 bg-white border border-blue-200 rounded-2xl font-black focus:ring-4 focus:ring-blue-50 outline-none transition-all" value={currentEq.title} onChange={e => setCurrentEq({ ...currentEq, title: e.target.value })} placeholder="Ex: Multifuncional P&B de Alta Velocidade" />
                   </div>
                   <label className="flex items-center gap-3 p-4 bg-blue-50/50 rounded-2xl cursor-pointer border border-blue-100 select-none">
@@ -197,13 +203,13 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Descrição Técnica Curta</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Descrição Técnica</label>
                 <textarea
                   className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl h-24 font-medium outline-none focus:ring-4 focus:ring-blue-100 transition-all"
                   placeholder="Velocidade, processamento, gavetas de papel..."
                   value={currentEq.specs}
                   onChange={e => setCurrentEq({ ...currentEq, specs: e.target.value })}
-                ></textarea>
+                />
               </div>
             </div>
             <div className="p-8 bg-slate-50 flex justify-end gap-4 border-t border-slate-100">
