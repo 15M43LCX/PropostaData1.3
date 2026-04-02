@@ -288,7 +288,7 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
             </div>
           )}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-            <p className="text-slate-400 text-[10px] uppercase tracking-widest">Premium Pro Proposals © 2024</p>
+            <p className="text-slate-400 text-[10px] uppercase tracking-widest">DATICOPY - Soluções em Impressão © 2026</p>
           </div>
         </div>
       </div>
