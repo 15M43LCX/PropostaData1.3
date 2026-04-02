@@ -43,6 +43,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     slaTime: '',
     contractTerm: '',
     selectedConditions: [],
+    franchiseMode: 'individual',
+    globalMonoFranchise: 0,
+    globalMonoExcess: 0,
+    globalColorFranchise: 0,
+    globalColorExcess: 0,
     status: ProposalStatus.ABERTO,
     totalValue: 0
   });
@@ -60,7 +65,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
       setMasterData(md);
       if (id) {
         const existing = proposals.find(p => p.id === id);
-        if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [] });
+        if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [], franchiseMode: existing.franchiseMode || 'individual', globalMonoFranchise: existing.globalMonoFranchise || 0, globalMonoExcess: existing.globalMonoExcess || 0, globalColorFranchise: existing.globalColorFranchise || 0, globalColorExcess: existing.globalColorExcess || 0 });
       } else {
         const year = new Date().getFullYear();
         const sequence = (proposals.length + 1).toString().padStart(3, '0');
@@ -268,6 +273,62 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
+              {/* ── Toggle Franquia Global / Individual (só Outsourcing) ── */}
+              {formData.pricingModel === PricingModel.OUTSOURCING && (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Modo de Franquia</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Escolha como a franquia de páginas é aplicada</p>
+                    </div>
+                    <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                      <button
+                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'individual' }))}
+                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode !== 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+                        Individual
+                      </button>
+                      <button
+                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'global' }))}
+                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode === 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+                        Global
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Campos Globais */}
+                  {formData.franchiseMode === 'global' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
+                      <div className="p-3 bg-white rounded-xl border border-slate-100 col-span-2 space-y-2">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Franquia Global</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
+                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))} />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 col-span-2 space-y-2">
+                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Colorido — Franquia Global</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
+                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))} />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
+                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Busca de equipamentos */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -399,6 +460,9 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                           <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
                           <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
                         </div>
+
+                        {/* Franquia — Individual apenas */}
+                        {formData.franchiseMode === 'individual' && (<>
                         {/* P&B */}
                         <div className="p-3 bg-white rounded-xl border border-slate-100 space-y-2">
                           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Monocromático</p>
@@ -433,7 +497,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                             <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
                           </div>
                         </div>
-                      </>)}
+                        </>)}
 
                       {isClique && (<>
                         <div className="sm:col-span-2">
