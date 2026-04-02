@@ -30,7 +30,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
     try {
       const [props, custs, eqs, users, md] = await Promise.all([
         storage.getVisibleProposals(user),
-        storage.getCustomers(),
+        storage.getVisibleCustomers(user),
         storage.getEquipments(),
         storage.getUsers(),
         storage.getMasterData(),
@@ -100,20 +100,19 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
       try {
         const pdf = new jsPDF('p', 'mm', 'a4', true);
         const pages = pdfRef.current.children;
-        // A4 a 200dpi = 1654x2339px — alta qualidade
-        const OUT_W = 1654;
-        const OUT_H = 2339;
+        // A4 a 150dpi — boa qualidade e arquivo controlado (≤10MB)
+        const OUT_W = 1240;
+        const OUT_H = 1754;
         for (let i = 0; i < pages.length; i++) {
           const page = pages[i] as HTMLElement;
           const canvas = await html2canvas(page, {
-            scale: 0.8,
+            scale: 2,
             useCORS: true,
             logging: false,
             windowWidth: 794,
             imageTimeout: 0,
             backgroundColor: '#ffffff',
           });
-          // Redimensiona para alta resolução
           const resized = document.createElement('canvas');
           resized.width = OUT_W;
           resized.height = OUT_H;
@@ -123,10 +122,10 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(canvas, 0, 0, OUT_W, OUT_H);
-          // PNG sem perda de qualidade para textos nítidos
-          const imgData = resized.toDataURL('image/png');
+          // JPEG 0.82 — alta qualidade visual, ~1-3MB por página
+          const imgData = resized.toDataURL('image/jpeg', 0.82);
           if (i > 0) pdf.addPage();
-          pdf.addImage(imgData, 'PNG', 0, 0, 210, 297, `pg${i}`, 'NONE');
+          pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297, `pg${i}`, 'FAST');
         }
         const cust = getCustomer(prop.customerId);
         pdf.save(`${prop.code}-${cust?.companyName || 'proposta'}.pdf`);
@@ -140,14 +139,24 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const getProposalBreakdown = (prop: Proposal) => {
-    const totalMonoFranchise = prop.items.reduce((acc, curr) => acc + (curr.monoFranchise * curr.quantity), 0);
-    const monoExcessRate = prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
+    const isGlobal = prop.franchiseMode === 'global';
     const monoClickRate = prop.items.find(i => (i.monoClickPrice || 0) > 0)?.monoClickPrice || 0;
     const colorItems = prop.items.filter(item => equipments.find(e => e.id === item.equipmentId)?.isColor);
+    const colorClickRate = colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
+
+    if (isGlobal) {
+      return {
+        isGlobal: true,
+        mono: { totalFranchise: prop.globalMonoFranchise || 0, excessRate: prop.globalMonoExcess || 0, clickRate: monoClickRate },
+        color: { totalFranchise: prop.globalColorFranchise || 0, excessRate: prop.globalColorExcess || 0, clickRate: colorClickRate },
+      };
+    }
+    const totalMonoFranchise = prop.items.reduce((acc, curr) => acc + (curr.monoFranchise * curr.quantity), 0);
+    const monoExcessRate = prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
     const totalColorFranchise = colorItems.reduce((acc, curr) => acc + ((curr.colorFranchise || 0) * curr.quantity), 0);
     const colorExcessRate = colorItems.find(i => (i.colorExcess || 0) > 0)?.colorExcess || 0;
-    const colorClickRate = colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
     return {
+      isGlobal: false,
       mono: { totalFranchise: totalMonoFranchise, excessRate: monoExcessRate, clickRate: monoClickRate },
       color: { totalFranchise: totalColorFranchise, excessRate: colorExcessRate, clickRate: colorClickRate }
     };
@@ -642,9 +651,11 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                       <>
                         {breakdown.mono.totalFranchise > 0 && (
                           <div className="p-6 px-8 bg-slate-50/20">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Impressão Monocromática</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                              Impressão Monocromática {breakdown.isGlobal && <span className="ml-1 bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
+                            </p>
                             <div className="flex justify-between items-center mb-2">
-                              <span className="text-slate-500 font-bold text-xs">Franquia:</span>
+                              <span className="text-slate-500 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
                               <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
                             </div>
                             {breakdown.mono.excessRate > 0 && (
@@ -657,9 +668,11 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                         )}
                         {breakdown.color.totalFranchise > 0 && (
                           <div className="p-6 px-8 bg-blue-50/10">
-                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Impressão Colorida</p>
+                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">
+                              Impressão Colorida {breakdown.isGlobal && <span className="ml-1 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
+                            </p>
                             <div className="flex justify-between items-center mb-2">
-                              <span className="text-blue-600 font-bold text-xs">Franquia:</span>
+                              <span className="text-blue-600 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
                               <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
                             </div>
                             {breakdown.color.excessRate > 0 && (
