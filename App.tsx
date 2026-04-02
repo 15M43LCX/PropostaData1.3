@@ -262,7 +262,7 @@ const Login: React.FC<{ onLogin: (e: string, p: string) => void; notification: a
       <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="p-10 text-center bg-gradient-to-br from-blue-700 to-indigo-900 text-white relative overflow-hidden">
           <div className="absolute inset-0 dot-pattern opacity-10"></div>
-          <h2 className="text-3xl font-bold font-montserrat mb-2 relative z-10">DATY Propostas</h2>
+          <h2 className="text-3xl font-bold font-montserrat mb-2 relative z-10">DATI Propostas</h2>
           <p className="text-blue-100 opacity-80 relative z-10">Sistema de Propostas Comerciais</p>
         </div>
         <div className="p-10">
