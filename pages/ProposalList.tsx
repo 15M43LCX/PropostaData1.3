@@ -139,26 +139,20 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const getProposalBreakdown = (prop: Proposal) => {
-    const isGlobal = prop.franchiseMode === 'global';
-    const monoClickRate = prop.items.find(i => (i.monoClickPrice || 0) > 0)?.monoClickPrice || 0;
-    const colorItems = prop.items.filter(item => equipments.find(e => e.id === item.equipmentId)?.isColor);
-    const colorClickRate = colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
-
-    if (isGlobal) {
-      return {
-        isGlobal: true,
-        mono: { totalFranchise: prop.globalMonoFranchise || 0, excessRate: prop.globalMonoExcess || 0, clickRate: monoClickRate },
-        color: { totalFranchise: prop.globalColorFranchise || 0, excessRate: prop.globalColorExcess || 0, clickRate: colorClickRate },
-      };
-    }
-    const totalMonoFranchise = prop.items.reduce((acc, curr) => acc + (curr.monoFranchise * curr.quantity), 0);
-    const monoExcessRate = prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
-    const totalColorFranchise = colorItems.reduce((acc, curr) => acc + ((curr.colorFranchise || 0) * curr.quantity), 0);
-    const colorExcessRate = colorItems.find(i => (i.colorExcess || 0) > 0)?.colorExcess || 0;
+    // Prioridade: campos da Etapa 3 (proposalXxx) → fallback para campos legados dos itens
+    const monoFranchise   = prop.proposalMonoFranchise   || prop.items.reduce((a, i) => a + (i.monoFranchise * i.quantity), 0);
+    const monoExcess      = prop.proposalMonoExcess      || prop.items.find(i => i.monoExcess > 0)?.monoExcess || 0;
+    const monoClick       = prop.proposalMonoClickPrice  || prop.items.find(i => (i.monoClickPrice || 0) > 0)?.monoClickPrice || 0;
+    const colorItems      = prop.items.filter(item => equipments.find(e => e.id === item.equipmentId)?.isColor);
+    const colorFranchise  = prop.proposalColorFranchise  || colorItems.reduce((a, i) => a + ((i.colorFranchise || 0) * i.quantity), 0);
+    const colorExcess     = prop.proposalColorExcess     || colorItems.find(i => (i.colorExcess || 0) > 0)?.colorExcess || 0;
+    const colorClick      = prop.proposalColorClickPrice || colorItems.find(i => (i.colorClickPrice || 0) > 0)?.colorClickPrice || 0;
+    const isGlobal        = prop.franchiseMode === 'global';
     return {
-      isGlobal: false,
-      mono: { totalFranchise: totalMonoFranchise, excessRate: monoExcessRate, clickRate: monoClickRate },
-      color: { totalFranchise: totalColorFranchise, excessRate: colorExcessRate, clickRate: colorClickRate }
+      isGlobal,
+      monthlyValue: prop.proposalMonthlyValue || 0,
+      mono:  { totalFranchise: isGlobal ? (prop.globalMonoFranchise  || 0) : monoFranchise,  excessRate: isGlobal ? (prop.globalMonoExcess  || 0) : monoExcess,  clickRate: monoClick  },
+      color: { totalFranchise: isGlobal ? (prop.globalColorFranchise || 0) : colorFranchise, excessRate: isGlobal ? (prop.globalColorExcess || 0) : colorExcess, clickRate: colorClick },
     };
   };
 
