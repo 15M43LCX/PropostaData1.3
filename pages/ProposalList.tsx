@@ -625,13 +625,13 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                         {breakdown.mono.clickRate > 0 && (
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-slate-500 font-bold text-xs">P&B (Monocromática):</span>
-                            <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(3)}</span>
+                            <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(2)}</span>
                           </div>
                         )}
                         {breakdown.color.clickRate > 0 && (
                           <div className="flex justify-between items-center">
                             <span className="text-blue-500 font-bold text-xs">Colorida:</span>
-                            <span className="font-black text-blue-700">R$ {breakdown.color.clickRate.toFixed(3)}</span>
+                            <span className="font-black text-blue-700">R$ {breakdown.color.clickRate.toFixed(2)}</span>
                           </div>
                         )}
                       </div>
@@ -655,7 +655,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                             {breakdown.mono.excessRate > 0 && (
                               <div className="flex justify-between items-center">
                                 <span className="text-slate-500 font-bold text-xs">Excedente:</span>
-                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(3)}/pág</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(2)}/pág</span>
                               </div>
                             )}
                           </div>
@@ -672,7 +672,7 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                             {breakdown.color.excessRate > 0 && (
                               <div className="flex justify-between items-center">
                                 <span className="text-blue-500 font-bold text-xs">Excedente:</span>
-                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(3)}/pág</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(2)}/pág</span>
                               </div>
                             )}
                           </div>
