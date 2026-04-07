@@ -572,20 +572,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
                 <div className="divide-y-2 divide-slate-50">
 
-                  {/* ── RESUMO POR ÍTEM ── */}
-                  <div className="p-6 px-8">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Detalhamento dos Ítens</p>
-                    <div className="space-y-2">
-                      {activeProp.items.map((item, idx) => {
-                        const eq = equipments.find(e => e.id === item.equipmentId);
-                        const isExtra = item.isExtra;
-                        const label = isExtra
-                          ? (item.extraDescription || 'Ítem Extra')
-                          : (eq ? `${eq.brand} ${eq.model}` : 'Equipamento');
-                        const itemSubtotal = activeProp.pricingModel === PricingModel.VENDA
-                          ? (item.unitValue || 0) * item.quantity
-                          : (item.monthlyValue || 0) * item.quantity;
-
                         return (
                           <div key={idx} className={`flex justify-between items-center py-2 px-3 rounded-xl text-xs ${isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
                             <div className="flex items-center gap-2">
