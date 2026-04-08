@@ -161,7 +161,7 @@ const AppLayout: React.FC<{ user: User; onLogout: () => void; notification: any 
             <Route path="/proposals/new" element={<ProposalEditor user={user} />} />
             <Route path="/proposals/edit/:id" element={<ProposalEditor user={user} />} />
             <Route path="/customers" element={<CustomerList user={user} />} />
-            <Route path="/equipment" element={<EquipmentList user={user} />} />
+            <Route path="/equipment" element={user.role === UserRole.ADMIN ? <EquipmentList user={user} /> : <Navigate to="/" />} />
             <Route path="/kanban" element={<KanbanBoard user={user} />} />
             <Route path="/admin" element={user.role === UserRole.ADMIN ? <AdminPanel /> : <Navigate to="/" />} />
             <Route path="/logs" element={user.role === UserRole.ADMIN ? <AuditLogPage user={user} /> : <Navigate to="/" />} />
@@ -186,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, onLogout, collapsed, mobileOpen
     { label: 'Mural Kanban', icon: Kanban, path: '/kanban' },
     { label: 'Propostas', icon: FileText, path: '/proposals' },
     { label: 'Clientes', icon: Users, path: '/customers' },
-    { label: 'Equipamentos', icon: Printer, path: '/equipment' },
+    ...(user.role === UserRole.ADMIN ? [{ label: 'Equipamentos', icon: Printer, path: '/equipment' }] : []),
   ];
   if (user.role === UserRole.ADMIN) {
     menuItems.push({ label: 'Log de Alterações', icon: ClipboardList, path: '/logs' });
