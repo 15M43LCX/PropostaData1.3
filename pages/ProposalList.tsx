@@ -602,63 +602,116 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* ── CLIQUE: só mostra preços por página, sem total ── */}
+                  {/* ── CLIQUE: preços por página + franquias se houver ── */}
                   {activeProp.pricingModel === PricingModel.CLIQUE && (() => {
                     const breakdown = getProposalBreakdown(activeProp);
+                    const hasMonoData = breakdown.mono.totalFranchise > 0 || breakdown.mono.excessRate > 0 || breakdown.mono.clickRate > 0;
+                    const hasColorData = breakdown.color.totalFranchise > 0 || breakdown.color.excessRate > 0 || breakdown.color.clickRate > 0;
                     return (
-                      <div className="p-6 px-8 bg-emerald-50/30">
-                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3">Preço por Página Produzida</p>
-                        {breakdown.mono.clickRate > 0 && (
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-slate-500 font-bold text-xs">P&B (Monocromática):</span>
-                            <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(2)}</span>
+                      <>
+                        {hasMonoData && (
+                          <div className="p-6 px-8 bg-slate-50/20">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Monocromático (P&B)</p>
+                            {breakdown.mono.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-slate-500 font-bold text-xs">Franquia P&B:</span>
+                                <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
+                            {breakdown.mono.excessRate > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-slate-500 font-bold text-xs">Excedente P&B:</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                            {breakdown.mono.clickRate > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500 font-bold text-xs">Pág. Produzida P&B:</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {breakdown.color.clickRate > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-blue-500 font-bold text-xs">Colorida:</span>
-                            <span className="font-black text-blue-700">R$ {breakdown.color.clickRate.toFixed(2)}</span>
+                        {hasColorData && (
+                          <div className="p-6 px-8 bg-blue-50/10">
+                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Colorido</p>
+                            {breakdown.color.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-blue-600 font-bold text-xs">Franquia Cor:</span>
+                                <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
+                            {breakdown.color.excessRate > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-blue-500 font-bold text-xs">Excedente Cor:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                            {breakdown.color.clickRate > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-blue-500 font-bold text-xs">Pág. Produzida Cor:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.clickRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
+                      </>
                     );
                   })()}
 
                   {/* ── OUTSOURCING: franquias ── */}
                   {activeProp.pricingModel === PricingModel.OUTSOURCING && (() => {
                     const breakdown = getProposalBreakdown(activeProp);
+                    const hasMonoData = breakdown.mono.totalFranchise > 0 || breakdown.mono.excessRate > 0 || breakdown.mono.clickRate > 0;
+                    const hasColorData = breakdown.color.totalFranchise > 0 || breakdown.color.excessRate > 0 || breakdown.color.clickRate > 0;
                     return (
                       <>
-                        {breakdown.mono.totalFranchise > 0 && (
+                        {hasMonoData && (
                           <div className="p-6 px-8 bg-slate-50/20">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
                               Impressão Monocromática {breakdown.isGlobal && <span className="ml-1 bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
                             </p>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-slate-500 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
-                              <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
-                            </div>
+                            {breakdown.mono.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-slate-500 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
+                                <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
                             {breakdown.mono.excessRate > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-slate-500 font-bold text-xs">Excedente P&B:</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                            {breakdown.mono.clickRate > 0 && (
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-500 font-bold text-xs">Excedente:</span>
-                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(2)}/pág</span>
+                                <span className="text-slate-500 font-bold text-xs">Pág. Produzida P&B:</span>
+                                <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(3)}/pág</span>
                               </div>
                             )}
                           </div>
                         )}
-                        {breakdown.color.totalFranchise > 0 && (
+                        {hasColorData && (
                           <div className="p-6 px-8 bg-blue-50/10">
                             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">
                               Impressão Colorida {breakdown.isGlobal && <span className="ml-1 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-[8px]">FRANQUIA GLOBAL</span>}
                             </p>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-blue-600 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
-                              <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
-                            </div>
+                            {breakdown.color.totalFranchise > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-blue-600 font-bold text-xs">Franquia{breakdown.isGlobal ? ' Global' : ' Total'}:</span>
+                                <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
+                              </div>
+                            )}
                             {breakdown.color.excessRate > 0 && (
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-blue-500 font-bold text-xs">Excedente Cor:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(3)}/pág</span>
+                              </div>
+                            )}
+                            {breakdown.color.clickRate > 0 && (
                               <div className="flex justify-between items-center">
-                                <span className="text-blue-500 font-bold text-xs">Excedente:</span>
-                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(2)}/pág</span>
+                                <span className="text-blue-500 font-bold text-xs">Pág. Produzida Cor:</span>
+                                <span className="font-black text-blue-600">R$ {breakdown.color.clickRate.toFixed(3)}/pág</span>
                               </div>
                             )}
                           </div>
