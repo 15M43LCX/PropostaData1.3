@@ -444,16 +444,12 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                             <p className="text-slate-900 font-bold text-xs leading-tight">
                               Tipo {globalIdx + 1}) {eq?.title} ({item.quantity} unidade(s))
                             </p>
-                            {/* Valor do ítem — apenas se não for Clique */}
-                            {activeProp.pricingModel !== PricingModel.CLIQUE && (
+                            {/* Valor unitário — apenas Venda */}
+                            {activeProp.pricingModel === PricingModel.VENDA && (
                               <div className="text-right">
-                                <p className="text-[9px] font-bold text-slate-500 uppercase">
-                                  {activeProp.pricingModel === PricingModel.VENDA ? 'Valor Unitário' : 'Valor Mensal'}
-                                </p>
+                                <p className="text-[9px] font-bold text-slate-500 uppercase">Valor Unitário</p>
                                 <p className="text-sm font-black text-slate-800">
-                                  {activeProp.pricingModel === PricingModel.VENDA
-                                    ? formatCurrency(item.unitValue || 0)
-                                    : formatCurrency(item.monthlyValue || 0)}
+                                  {formatCurrency(item.unitValue || 0)}
                                   {item.quantity > 1 && (
                                     <span className="text-[9px] text-slate-400 font-bold ml-1">× {item.quantity} = {formatCurrency(itemSubtotal)}</span>
                                   )}
@@ -602,65 +598,10 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* ── CLIQUE: preços por página + franquias se houver ── */}
-                  {activeProp.pricingModel === PricingModel.CLIQUE && (() => {
-                    const breakdown = getProposalBreakdown(activeProp);
-                    const hasMonoData = breakdown.mono.totalFranchise > 0 || breakdown.mono.excessRate > 0 || breakdown.mono.clickRate > 0;
-                    const hasColorData = breakdown.color.totalFranchise > 0 || breakdown.color.excessRate > 0 || breakdown.color.clickRate > 0;
-                    return (
-                      <>
-                        {hasMonoData && (
-                          <div className="p-6 px-8 bg-slate-50/20">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Monocromático (P&B)</p>
-                            {breakdown.mono.totalFranchise > 0 && (
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-500 font-bold text-xs">Franquia P&B:</span>
-                                <span className="font-black text-slate-800">{breakdown.mono.totalFranchise.toLocaleString('pt-BR')} pág</span>
-                              </div>
-                            )}
-                            {breakdown.mono.excessRate > 0 && (
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-500 font-bold text-xs">Excedente P&B:</span>
-                                <span className="font-black text-slate-800">R$ {breakdown.mono.excessRate.toFixed(3)}/pág</span>
-                              </div>
-                            )}
-                            {breakdown.mono.clickRate > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-500 font-bold text-xs">Pág. Produzida P&B:</span>
-                                <span className="font-black text-slate-800">R$ {breakdown.mono.clickRate.toFixed(3)}/pág</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {hasColorData && (
-                          <div className="p-6 px-8 bg-blue-50/10">
-                            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Colorido</p>
-                            {breakdown.color.totalFranchise > 0 && (
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-blue-600 font-bold text-xs">Franquia Cor:</span>
-                                <span className="font-black text-blue-700">{breakdown.color.totalFranchise.toLocaleString('pt-BR')} pág</span>
-                              </div>
-                            )}
-                            {breakdown.color.excessRate > 0 && (
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-blue-500 font-bold text-xs">Excedente Cor:</span>
-                                <span className="font-black text-blue-600">R$ {breakdown.color.excessRate.toFixed(3)}/pág</span>
-                              </div>
-                            )}
-                            {breakdown.color.clickRate > 0 && (
-                              <div className="flex justify-between items-center">
-                                <span className="text-blue-500 font-bold text-xs">Pág. Produzida Cor:</span>
-                                <span className="font-black text-blue-600">R$ {breakdown.color.clickRate.toFixed(3)}/pág</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
 
-                  {/* ── OUTSOURCING: franquias ── */}
-                  {activeProp.pricingModel === PricingModel.OUTSOURCING && (() => {
+
+                  {/* ── OUTSOURCING / CLIQUE: franquias e excedentes ── */}
+                  {(activeProp.pricingModel === PricingModel.OUTSOURCING || activeProp.pricingModel === PricingModel.CLIQUE) && (() => {
                     const breakdown = getProposalBreakdown(activeProp);
                     const hasMonoData = breakdown.mono.totalFranchise > 0 || breakdown.mono.excessRate > 0 || breakdown.mono.clickRate > 0;
                     const hasColorData = breakdown.color.totalFranchise > 0 || breakdown.color.excessRate > 0 || breakdown.color.clickRate > 0;
