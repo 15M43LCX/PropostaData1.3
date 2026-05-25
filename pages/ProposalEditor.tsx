@@ -48,6 +48,13 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     globalMonoExcess: 0,
     globalColorFranchise: 0,
     globalColorExcess: 0,
+    proposalMonthlyValue: 0,
+    proposalMonoFranchise: 0,
+    proposalMonoExcess: 0,
+    proposalMonoClickPrice: 0,
+    proposalColorFranchise: 0,
+    proposalColorExcess: 0,
+    proposalColorClickPrice: 0,
     status: ProposalStatus.ABERTO,
     totalValue: 0
   });
@@ -65,7 +72,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
       setMasterData(md);
       if (id) {
         const existing = proposals.find(p => p.id === id);
-        if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [], franchiseMode: existing.franchiseMode || 'individual', globalMonoFranchise: existing.globalMonoFranchise || 0, globalMonoExcess: existing.globalMonoExcess || 0, globalColorFranchise: existing.globalColorFranchise || 0, globalColorExcess: existing.globalColorExcess || 0 });
+        if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [], franchiseMode: existing.franchiseMode || 'individual', globalMonoFranchise: existing.globalMonoFranchise || 0, globalMonoExcess: existing.globalMonoExcess || 0, globalColorFranchise: existing.globalColorFranchise || 0, globalColorExcess: existing.globalColorExcess || 0, proposalMonthlyValue: existing.proposalMonthlyValue || 0, proposalMonoFranchise: existing.proposalMonoFranchise || 0, proposalMonoExcess: existing.proposalMonoExcess || 0, proposalMonoClickPrice: existing.proposalMonoClickPrice || 0, proposalColorFranchise: existing.proposalColorFranchise || 0, proposalColorExcess: existing.proposalColorExcess || 0, proposalColorClickPrice: existing.proposalColorClickPrice || 0 });
       } else {
         const year = new Date().getFullYear();
         const sequence = (proposals.length + 1).toString().padStart(3, '0');
@@ -85,12 +92,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   }, [id, user]);
 
   useEffect(() => {
-    let total = 0;
-    if (formData.pricingModel === PricingModel.VENDA)
-      total = formData.items.reduce((acc, i) => acc + ((i.unitValue || 0) * i.quantity), 0);
-    else if (formData.pricingModel === PricingModel.OUTSOURCING)
-      total = formData.items.reduce((acc, i) => acc + ((i.monthlyValue || 0) * i.quantity), 0);
-    setFormData(prev => ({ ...prev, totalValue: total }));
+    if (formData.pricingModel === PricingModel.VENDA) {
+      const total = formData.items.reduce((acc, i) => acc + ((i.unitValue || 0) * i.quantity), 0);
+      setFormData(prev => ({ ...prev, totalValue: total }));
+    }
+    // Outsourcing/Clique: totalValue is set via proposalMonthlyValue in Step 3
   }, [formData.items, formData.pricingModel]);
 
   const newBlankItem = (isExtra = false): ProposalItem => ({
@@ -391,98 +397,35 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-200 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="border-t border-slate-200 pt-3 space-y-3">
                       {isVenda && (
-                        <div className="sm:col-span-2">
+                        <div>
                           <label className="text-[9px] font-black text-blue-600 uppercase">Preço Unitário de Venda (R$)</label>
-                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
+                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800 mt-1" value={item.unitValue || 0} onChange={e => updateItem(idx, { unitValue: parseFloat(e.target.value) || 0 })} />
                         </div>
                       )}
-
-                      {isOutsourcing && (<>
-                        <div className="sm:col-span-2">
-                          <label className="text-[9px] font-black text-blue-600 uppercase">Valor Mensal / Locação (R$)</label>
-                          <input type="number" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-black text-blue-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                        </div>
-
-                        {/* Franquia — Individual apenas */}
-                        {formData.franchiseMode === 'individual' && (<>
-                        {/* P&B */}
-                        <div className="p-3 bg-white rounded-xl border border-slate-100 space-y-2">
-                          <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Monocromático</p>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
-                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoFranchise || 0} onChange={e => updateItem(idx, { monoFranchise: parseInt(e.target.value) || 0 })} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoExcess || 0} onChange={e => updateItem(idx, { monoExcess: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. P&B (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                        </div>
-                        {/* Cor */}
-                        <div className={`p-3 rounded-xl border space-y-2 ${isColor ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100 opacity-40 pointer-events-none'}`}>
-                          <p className={`text-[9px] font-black uppercase tracking-widest ${isColor ? 'text-blue-500' : 'text-slate-400'}`}>
-                            Colorido {!isColor && '(N/D neste equipamento)'}
-                          </p>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
-                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorFranchise || 0} onChange={e => updateItem(idx, { colorFranchise: parseInt(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorExcess || 0} onChange={e => updateItem(idx, { colorExcess: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} disabled={!isColor} />
-                          </div>
-                        </div>
-                        </>)}
-
-                      {isClique && (<>
-                        <div className="sm:col-span-2">
-                          <label className="text-[9px] font-black text-emerald-600 uppercase">Valor de Gestão/Mensal (R$)</label>
-                          <input type="number" className="w-full p-3 bg-emerald-50 border border-emerald-100 rounded-xl font-black text-emerald-800" value={item.monthlyValue || 0} onChange={e => updateItem(idx, { monthlyValue: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase">Pág. Prod. P&B (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs" value={item.monoClickPrice || 0} onChange={e => updateItem(idx, { monoClickPrice: parseFloat(e.target.value) || 0 })} />
-                        </div>
-                        {isColor && (
-                          <div>
-                            <label className="text-[9px] font-black text-blue-500 uppercase">Pág. Prod. Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-3 bg-blue-50 border border-blue-100 rounded-xl font-bold text-xs" value={item.colorClickPrice || 0} onChange={e => updateItem(idx, { colorClickPrice: parseFloat(e.target.value) || 0 })} />
-                          </div>
-                        )}
-                      </>)}
-
-                      <div className="sm:col-span-2">
+                      <div>
                         <label className="text-[9px] font-black text-slate-400 uppercase">Observação do Ítem (opcional)</label>
-                        <textarea rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm resize-none" placeholder="Texto descritivo para aparecer na proposta..." value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
+                        <textarea rows={2} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-sm resize-none mt-1" placeholder="Texto descritivo para aparecer na proposta..." value={item.itemNote || ''} onChange={e => updateItem(idx, { itemNote: e.target.value })} />
                       </div>
+                      {isVenda && (
+                        <div className="flex justify-end">
+                          <span className="text-[10px] font-black text-slate-400">Subtotal: <span className="text-slate-700 text-sm">{fmt(subtotal)}</span></span>
+                        </div>
+                      )}
                     </div>
-
-                    {!isClique && (
-                      <div className="flex justify-end mt-2">
-                        <span className="text-[10px] font-black text-slate-400">Subtotal: <span className="text-slate-700 text-sm">{fmt(subtotal)}</span></span>
-                      </div>
-                    )}
                   </div>
                 );
               })}
 
               {formData.items.length > 0 && (
-                totalLabel
+                formData.pricingModel === PricingModel.VENDA
                   ? <div className="bg-slate-900 rounded-2xl p-5 flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase text-blue-400">{totalLabel}</span>
+                      <span className="text-[10px] font-black uppercase text-blue-400">Total de Venda</span>
                       <span className="text-2xl font-black text-white">{fmt(formData.totalValue)}</span>
                     </div>
-                  : <div className="bg-emerald-900 rounded-2xl p-5 flex items-center justify-center">
-                      <span className="text-[10px] font-black uppercase text-emerald-300">Contrato de Clique — cobrança por página produzida</span>
+                  : <div className="bg-blue-900/60 rounded-2xl p-5 flex items-center justify-center">
+                      <span className="text-[10px] font-black uppercase text-blue-300">✓ Valores financeiros na Etapa 3</span>
                     </div>
               )}
             </div>
@@ -491,29 +434,20 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
           {/* ── STEP 3 ── */}
           {step === 3 && (
             <div className="space-y-6 animate-in fade-in">
-              {totalLabel ? (
-                <div className="bg-slate-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-blue-400 mb-1">{totalLabel}</p>
-                    <h3 className="text-4xl sm:text-5xl font-black">{fmt(formData.totalValue)}</h3>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl text-right">
-                    <p className="text-[9px] font-black uppercase text-slate-300">Modelo</p>
-                    <p className="font-black text-blue-300 text-sm">{formData.pricingModel}</p>
-                  </div>
+              <div className="bg-slate-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
+                <div>
+                  <p className="text-[9px] font-black uppercase text-blue-400 mb-1">
+                    {formData.pricingModel === PricingModel.VENDA ? 'Total de Venda' : formData.pricingModel === PricingModel.OUTSOURCING ? 'Valor Mensal' : 'Modelo Ativo'}
+                  </p>
+                  <h3 className="text-4xl sm:text-5xl font-black">
+                    {formData.pricingModel === PricingModel.VENDA ? fmt(formData.totalValue) : formData.pricingModel === PricingModel.OUTSOURCING ? fmt(formData.proposalMonthlyValue || 0) : formData.pricingModel}
+                  </h3>
                 </div>
-              ) : (
-                <div className="bg-emerald-900 p-8 rounded-[24px] text-white flex justify-between items-center shadow-2xl">
-                  <div>
-                    <p className="text-[9px] font-black uppercase text-emerald-400 mb-1">Modelo Ativo</p>
-                    <h3 className="text-2xl font-black text-emerald-200">{formData.pricingModel}</h3>
-                    <p className="text-[10px] text-emerald-400 mt-1">Cobrança por clique — sem valor total fixo</p>
-                  </div>
-                  <div className="bg-white/10 p-4 rounded-xl">
-                    <p className="text-[9px] font-black uppercase text-slate-300">{formData.items.length} ítens</p>
-                  </div>
+                <div className="bg-white/10 p-4 rounded-xl text-right">
+                  <p className="text-[9px] font-black uppercase text-slate-300">Modelo</p>
+                  <p className="font-black text-blue-300 text-sm">{formData.pricingModel}</p>
                 </div>
-              )}
+              </div>
 
               {/* Resumo ítens */}
               <div>
@@ -539,7 +473,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
-              {/* ── Painel Financeiro + Modo de Franquia (Outsourcing / Clique) ── */}
+              {/* ── Painel Financeiro Etapa 3 (Outsourcing / Clique) ── */}
               {(formData.pricingModel === PricingModel.OUTSOURCING || formData.pricingModel === PricingModel.CLIQUE) && (
                 <div className="space-y-4">
                   <label className="text-[10px] font-black uppercase text-slate-400 block">Valores Financeiros da Proposta</label>
@@ -549,16 +483,14 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     <label className={`text-[9px] font-black uppercase tracking-widest block mb-2 ${formData.pricingModel === PricingModel.OUTSOURCING ? 'text-blue-600' : 'text-emerald-600'}`}>
                       {formData.pricingModel === PricingModel.OUTSOURCING ? 'Valor Mensal Total / Locação (R$)' : 'Valor de Gestão / Mensal (R$)'}
                     </label>
-                    <input
-                      type="number"
+                    <input type="number"
                       className={`w-full p-3 bg-white rounded-xl font-black text-lg border ${formData.pricingModel === PricingModel.OUTSOURCING ? 'border-blue-200 text-blue-800' : 'border-emerald-200 text-emerald-800'}`}
                       value={formData.proposalMonthlyValue || 0}
                       onChange={e => setFormData(prev => ({ ...prev, proposalMonthlyValue: parseFloat(e.target.value) || 0, totalValue: parseFloat(e.target.value) || 0 }))}
-                      placeholder="0,00"
-                    />
+                      placeholder="0,00" />
                   </div>
 
-                  {/* Toggle Franquia Global / Por Equipamento */}
+                  {/* Toggle Franquia Global / Por Equipamento — só Outsourcing */}
                   {formData.pricingModel === PricingModel.OUTSOURCING && (
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                       <div className="flex items-center justify-between">
@@ -580,14 +512,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* Campos de franquia — Global mostra aqui, Individual mostra nos itens da Step 2 */}
+                  {/* Campos de franquia e excedente — Global ou Clique */}
                   {(formData.pricingModel === PricingModel.CLIQUE || formData.franchiseMode === 'global') && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* P&B */}
                       <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                        <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
-                          Monocromático (P&B){formData.franchiseMode === 'global' ? ' — Global' : ''}
-                        </p>
+                        <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Monocromático (P&B)</p>
                         <div>
                           <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia P&B (pág)</label>
                           <input type="number" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
@@ -611,11 +540,8 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                             onChange={e => setFormData(prev => ({ ...prev, proposalMonoClickPrice: parseFloat(e.target.value) || 0 }))} />
                         </div>
                       </div>
-                      {/* Cor */}
                       <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl space-y-3">
-                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">
-                          Colorido{formData.franchiseMode === 'global' ? ' — Global' : ''}
-                        </p>
+                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Colorido</p>
                         <div>
                           <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia Cor (pág)</label>
                           <input type="number" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
@@ -642,11 +568,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* Aviso quando modo Individual — campos ficam nos itens */}
+                  {/* Aviso modo Por Equipamento */}
                   {formData.pricingModel === PricingModel.OUTSOURCING && formData.franchiseMode !== 'global' && (
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-2">
-                      <span className="text-blue-400 text-[10px]">ℹ</span>
-                      <p className="text-[10px] text-slate-500 font-bold">No modo <strong>Por Equipamento</strong>, as franquias e excedentes são configurados em cada item na Etapa 2.</p>
+                      <span className="text-blue-400 shrink-0">ℹ</span>
+                      <p className="text-[10px] text-slate-500 font-bold">Modo <strong>Por Equipamento</strong>: franquias e excedentes são configurados por item na Etapa 2.</p>
                     </div>
                   )}
                 </div>
