@@ -100,6 +100,13 @@ export interface Proposal {
   globalMonoExcess?: number;      // Excedente global P&B (R$/pág)
   globalColorFranchise?: number;  // Franquia global Cor (pág)
   globalColorExcess?: number;     // Excedente global Cor (R$/pág)
+  proposalMonthlyValue?: number;
+  proposalMonoFranchise?: number;
+  proposalMonoExcess?: number;
+  proposalMonoClickPrice?: number;
+  proposalColorFranchise?: number;
+  proposalColorExcess?: number;
+  proposalColorClickPrice?: number;
   status: ProposalStatus;
   totalValue: number;
 }
