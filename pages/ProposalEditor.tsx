@@ -273,62 +273,6 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                 </div>
               </div>
 
-              {/* ── Toggle Franquia Global / Individual (só Outsourcing) ── */}
-              {formData.pricingModel === PricingModel.OUTSOURCING && (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Modo de Franquia</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Escolha como a franquia de páginas é aplicada</p>
-                    </div>
-                    <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                      <button
-                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'individual' }))}
-                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode !== 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
-                        Individual
-                      </button>
-                      <button
-                        onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'global' }))}
-                        className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode === 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
-                        Global
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Campos Globais */}
-                  {formData.franchiseMode === 'global' && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
-                      <div className="p-3 bg-white rounded-xl border border-slate-100 col-span-2 space-y-2">
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">P&B — Franquia Global</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia (pág)</label>
-                            <input type="number" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-slate-50 rounded-lg font-bold text-xs mt-1" value={formData.globalMonoExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))} />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 col-span-2 space-y-2">
-                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Colorido — Franquia Global</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Franquia Cor (pág)</label>
-                            <input type="number" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorFranchise || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))} />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-400 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                            <input type="number" step="0.001" className="w-full p-2 bg-white rounded-lg font-bold text-xs mt-1" value={formData.globalColorExcess || 0} onChange={e => setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))} />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Busca de equipamentos */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -594,6 +538,119 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                   })}
                 </div>
               </div>
+
+              {/* ── Painel Financeiro + Modo de Franquia (Outsourcing / Clique) ── */}
+              {(formData.pricingModel === PricingModel.OUTSOURCING || formData.pricingModel === PricingModel.CLIQUE) && (
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black uppercase text-slate-400 block">Valores Financeiros da Proposta</label>
+
+                  {/* Valor Mensal */}
+                  <div className={formData.pricingModel === PricingModel.OUTSOURCING ? "bg-blue-50 border border-blue-100 rounded-2xl p-5" : "bg-emerald-50 border border-emerald-100 rounded-2xl p-5"}>
+                    <label className={`text-[9px] font-black uppercase tracking-widest block mb-2 ${formData.pricingModel === PricingModel.OUTSOURCING ? 'text-blue-600' : 'text-emerald-600'}`}>
+                      {formData.pricingModel === PricingModel.OUTSOURCING ? 'Valor Mensal Total / Locação (R$)' : 'Valor de Gestão / Mensal (R$)'}
+                    </label>
+                    <input
+                      type="number"
+                      className={`w-full p-3 bg-white rounded-xl font-black text-lg border ${formData.pricingModel === PricingModel.OUTSOURCING ? 'border-blue-200 text-blue-800' : 'border-emerald-200 text-emerald-800'}`}
+                      value={formData.proposalMonthlyValue || 0}
+                      onChange={e => setFormData(prev => ({ ...prev, proposalMonthlyValue: parseFloat(e.target.value) || 0, totalValue: parseFloat(e.target.value) || 0 }))}
+                      placeholder="0,00"
+                    />
+                  </div>
+
+                  {/* Toggle Franquia Global / Por Equipamento */}
+                  {formData.pricingModel === PricingModel.OUTSOURCING && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Modo de Franquia</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Franquia única para todos ou por equipamento</p>
+                        </div>
+                        <div className="flex rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                          <button onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'individual' }))}
+                            className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode !== 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+                            Por Equipamento
+                          </button>
+                          <button onClick={() => setFormData(prev => ({ ...prev, franchiseMode: 'global' }))}
+                            className={`px-4 py-2 text-[10px] font-black uppercase transition ${formData.franchiseMode === 'global' ? 'bg-blue-600 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}>
+                            Global
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Campos de franquia — Global mostra aqui, Individual mostra nos itens da Step 2 */}
+                  {(formData.pricingModel === PricingModel.CLIQUE || formData.franchiseMode === 'global') && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* P&B */}
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                        <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                          Monocromático (P&B){formData.franchiseMode === 'global' ? ' — Global' : ''}
+                        </p>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia P&B (pág)</label>
+                          <input type="number" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                            value={formData.franchiseMode === 'global' ? (formData.globalMonoFranchise || 0) : (formData.proposalMonoFranchise || 0)}
+                            onChange={e => formData.franchiseMode === 'global'
+                              ? setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))
+                              : setFormData(prev => ({ ...prev, proposalMonoFranchise: parseInt(e.target.value) || 0 }))} />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente P&B (R$/pág)</label>
+                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                            value={formData.franchiseMode === 'global' ? (formData.globalMonoExcess || 0) : (formData.proposalMonoExcess || 0)}
+                            onChange={e => formData.franchiseMode === 'global'
+                              ? setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))
+                              : setFormData(prev => ({ ...prev, proposalMonoExcess: parseFloat(e.target.value) || 0 }))} />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida P&B (R$/pág)</label>
+                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                            value={formData.proposalMonoClickPrice || 0}
+                            onChange={e => setFormData(prev => ({ ...prev, proposalMonoClickPrice: parseFloat(e.target.value) || 0 }))} />
+                        </div>
+                      </div>
+                      {/* Cor */}
+                      <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl space-y-3">
+                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">
+                          Colorido{formData.franchiseMode === 'global' ? ' — Global' : ''}
+                        </p>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia Cor (pág)</label>
+                          <input type="number" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                            value={formData.franchiseMode === 'global' ? (formData.globalColorFranchise || 0) : (formData.proposalColorFranchise || 0)}
+                            onChange={e => formData.franchiseMode === 'global'
+                              ? setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))
+                              : setFormData(prev => ({ ...prev, proposalColorFranchise: parseInt(e.target.value) || 0 }))} />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente Cor (R$/pág)</label>
+                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                            value={formData.franchiseMode === 'global' ? (formData.globalColorExcess || 0) : (formData.proposalColorExcess || 0)}
+                            onChange={e => formData.franchiseMode === 'global'
+                              ? setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))
+                              : setFormData(prev => ({ ...prev, proposalColorExcess: parseFloat(e.target.value) || 0 }))} />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida Cor (R$/pág)</label>
+                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                            value={formData.proposalColorClickPrice || 0}
+                            onChange={e => setFormData(prev => ({ ...prev, proposalColorClickPrice: parseFloat(e.target.value) || 0 }))} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Aviso quando modo Individual — campos ficam nos itens */}
+                  {formData.pricingModel === PricingModel.OUTSOURCING && formData.franchiseMode !== 'global' && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-2">
+                      <span className="text-blue-400 text-[10px]">ℹ</span>
+                      <p className="text-[10px] text-slate-500 font-bold">No modo <strong>Por Equipamento</strong>, as franquias e excedentes são configurados em cada item na Etapa 2.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── Condições Comerciais com filtro ── */}
               <div className="space-y-3">
