@@ -528,7 +528,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente P&B (R$/pág)</label>
-                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                        <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
                           value={formData.franchiseMode === 'global' ? (formData.globalMonoExcess || 0) : (formData.proposalMonoExcess || 0)}
                           onChange={e => formData.franchiseMode === 'global'
                             ? setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))
@@ -536,7 +536,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida P&B (R$/pág)</label>
-                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                        <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
                           value={formData.proposalMonoClickPrice || 0}
                           onChange={e => setFormData(prev => ({ ...prev, proposalMonoClickPrice: parseFloat(e.target.value) || 0 }))} />
                       </div>
@@ -555,7 +555,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                        <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
                           value={formData.franchiseMode === 'global' ? (formData.globalColorExcess || 0) : (formData.proposalColorExcess || 0)}
                           onChange={e => formData.franchiseMode === 'global'
                             ? setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))
@@ -563,7 +563,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida Cor (R$/pág)</label>
-                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                        <input type="number" step="0.01" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
                           value={formData.proposalColorClickPrice || 0}
                           onChange={e => setFormData(prev => ({ ...prev, proposalColorClickPrice: parseFloat(e.target.value) || 0 }))} />
                       </div>
