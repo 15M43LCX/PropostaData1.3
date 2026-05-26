@@ -512,69 +512,63 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     </div>
                   )}
 
-                  {/* Campos de franquia e excedente — Global ou Clique */}
-                  {(formData.pricingModel === PricingModel.CLIQUE || formData.franchiseMode === 'global') && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-                        <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Monocromático (P&B)</p>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia P&B (pág)</label>
-                          <input type="number" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
-                            value={formData.franchiseMode === 'global' ? (formData.globalMonoFranchise || 0) : (formData.proposalMonoFranchise || 0)}
-                            onChange={e => formData.franchiseMode === 'global'
-                              ? setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))
-                              : setFormData(prev => ({ ...prev, proposalMonoFranchise: parseInt(e.target.value) || 0 }))} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente P&B (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
-                            value={formData.franchiseMode === 'global' ? (formData.globalMonoExcess || 0) : (formData.proposalMonoExcess || 0)}
-                            onChange={e => formData.franchiseMode === 'global'
-                              ? setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))
-                              : setFormData(prev => ({ ...prev, proposalMonoExcess: parseFloat(e.target.value) || 0 }))} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida P&B (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
-                            value={formData.proposalMonoClickPrice || 0}
-                            onChange={e => setFormData(prev => ({ ...prev, proposalMonoClickPrice: parseFloat(e.target.value) || 0 }))} />
-                        </div>
+                  {/* Campos de franquia, excedente e pág produzida — sempre visíveis */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                        Monocromático (P&B){formData.franchiseMode === 'global' ? ' — Global' : ''}
+                      </p>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia P&B (pág)</label>
+                        <input type="number" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                          value={formData.franchiseMode === 'global' ? (formData.globalMonoFranchise || 0) : (formData.proposalMonoFranchise || 0)}
+                          onChange={e => formData.franchiseMode === 'global'
+                            ? setFormData(prev => ({ ...prev, globalMonoFranchise: parseInt(e.target.value) || 0 }))
+                            : setFormData(prev => ({ ...prev, proposalMonoFranchise: parseInt(e.target.value) || 0 }))} />
                       </div>
-                      <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl space-y-3">
-                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Colorido</p>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia Cor (pág)</label>
-                          <input type="number" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
-                            value={formData.franchiseMode === 'global' ? (formData.globalColorFranchise || 0) : (formData.proposalColorFranchise || 0)}
-                            onChange={e => formData.franchiseMode === 'global'
-                              ? setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))
-                              : setFormData(prev => ({ ...prev, proposalColorFranchise: parseInt(e.target.value) || 0 }))} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente Cor (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
-                            value={formData.franchiseMode === 'global' ? (formData.globalColorExcess || 0) : (formData.proposalColorExcess || 0)}
-                            onChange={e => formData.franchiseMode === 'global'
-                              ? setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))
-                              : setFormData(prev => ({ ...prev, proposalColorExcess: parseFloat(e.target.value) || 0 }))} />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida Cor (R$/pág)</label>
-                          <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
-                            value={formData.proposalColorClickPrice || 0}
-                            onChange={e => setFormData(prev => ({ ...prev, proposalColorClickPrice: parseFloat(e.target.value) || 0 }))} />
-                        </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente P&B (R$/pág)</label>
+                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                          value={formData.franchiseMode === 'global' ? (formData.globalMonoExcess || 0) : (formData.proposalMonoExcess || 0)}
+                          onChange={e => formData.franchiseMode === 'global'
+                            ? setFormData(prev => ({ ...prev, globalMonoExcess: parseFloat(e.target.value) || 0 }))
+                            : setFormData(prev => ({ ...prev, proposalMonoExcess: parseFloat(e.target.value) || 0 }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida P&B (R$/pág)</label>
+                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm mt-1"
+                          value={formData.proposalMonoClickPrice || 0}
+                          onChange={e => setFormData(prev => ({ ...prev, proposalMonoClickPrice: parseFloat(e.target.value) || 0 }))} />
                       </div>
                     </div>
-                  )}
-
-                  {/* Aviso modo Por Equipamento */}
-                  {formData.pricingModel === PricingModel.OUTSOURCING && formData.franchiseMode !== 'global' && (
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center gap-2">
-                      <span className="text-blue-400 shrink-0">ℹ</span>
-                      <p className="text-[10px] text-slate-500 font-bold">Modo <strong>Por Equipamento</strong>: franquias e excedentes são configurados por item na Etapa 2.</p>
+                    <div className="p-4 bg-blue-50/40 border border-blue-100 rounded-2xl space-y-3">
+                      <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">
+                        Colorido{formData.franchiseMode === 'global' ? ' — Global' : ''}
+                      </p>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Franquia Cor (pág)</label>
+                        <input type="number" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                          value={formData.franchiseMode === 'global' ? (formData.globalColorFranchise || 0) : (formData.proposalColorFranchise || 0)}
+                          onChange={e => formData.franchiseMode === 'global'
+                            ? setFormData(prev => ({ ...prev, globalColorFranchise: parseInt(e.target.value) || 0 }))
+                            : setFormData(prev => ({ ...prev, proposalColorFranchise: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Excedente Cor (R$/pág)</label>
+                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                          value={formData.franchiseMode === 'global' ? (formData.globalColorExcess || 0) : (formData.proposalColorExcess || 0)}
+                          onChange={e => formData.franchiseMode === 'global'
+                            ? setFormData(prev => ({ ...prev, globalColorExcess: parseFloat(e.target.value) || 0 }))
+                            : setFormData(prev => ({ ...prev, proposalColorExcess: parseFloat(e.target.value) || 0 }))} />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 font-bold uppercase">Pág. Produzida Cor (R$/pág)</label>
+                        <input type="number" step="0.001" className="w-full p-2.5 bg-white border border-blue-100 rounded-xl font-bold text-sm mt-1"
+                          value={formData.proposalColorClickPrice || 0}
+                          onChange={e => setFormData(prev => ({ ...prev, proposalColorClickPrice: parseFloat(e.target.value) || 0 }))} />
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
