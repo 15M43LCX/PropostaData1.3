@@ -568,24 +568,6 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
                 <div className="divide-y-2 divide-slate-50">
 
-                        return (
-                          <div key={idx} className={`flex justify-between items-center py-2 px-3 rounded-xl text-xs ${isExtra ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'}`}>
-                            <div className="flex items-center gap-2">
-                              {isExtra && <span className="text-amber-500 text-[9px] font-black uppercase">★ Extra</span>}
-                              <span className="font-bold text-slate-700">{item.quantity}× {label}</span>
-                              {item.itemNote && <span className="text-[9px] text-slate-400 italic ml-1">— {item.itemNote}</span>}
-                            </div>
-                            {activeProp.pricingModel !== PricingModel.CLIQUE ? (
-                              <span className="font-black text-slate-800">{formatCurrency(itemSubtotal)}</span>
-                            ) : (
-                              <span className="text-[9px] font-bold text-slate-400 uppercase">por clique</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   {/* ── TOTAL (apenas Venda e Outsourcing) ── */}
                   {getTotalLabel(activeProp.pricingModel) && (
                     <div className="p-8 flex justify-between items-center bg-slate-50/50">
