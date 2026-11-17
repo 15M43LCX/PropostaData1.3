@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Trash2, AlertCircle, Star, Search, X, Printer, Plus, Save, UserPlus } from 'lucide-react';
+import { Trash2, AlertCircle, Star, Search, X, Printer, Plus, Save, UserPlus, RefreshCw } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Proposal, PricingModel, OutsourcingSubtype, ProposalStatus, ProposalItem, Customer, Equipment, MasterData } from '../types';
 import { INITIAL_MASTER_DATA } from '../constants';
@@ -25,6 +25,7 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [eqError, setEqError] = useState<string | null>(null);
   const [masterData, setMasterData] = useState<MasterData>(INITIAL_MASTER_DATA);
 
   const [formData, setFormData] = useState<Proposal>({
@@ -63,7 +64,11 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     const load = async () => {
       const [c, e, md, proposals] = await Promise.all([
         storage.getVisibleCustomers(user),
-        storage.getEquipments(),
+        storage.getEquipments().catch((err: any) => {
+          console.error('Erro ao carregar equipamentos:', err);
+          setEqError(err?.message || 'Falha ao carregar equipamentos.');
+          return [] as Equipment[];
+        }),
         storage.getMasterData(),
         storage.getProposals(),
       ]);
@@ -90,6 +95,17 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
     };
     load();
   }, [id, user]);
+
+  // Tenta de novo o carregamento dos equipamentos (botão "Tentar novamente")
+  const retryEquipments = async () => {
+    try {
+      const list = await storage.getEquipments();
+      setEquipments(list);
+      setEqError(null);
+    } catch (err: any) {
+      setEqError(err?.message || 'Falha ao carregar equipamentos.');
+    }
+  };
 
   useEffect(() => {
     if (formData.pricingModel === PricingModel.VENDA) {
@@ -180,6 +196,16 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
   const filteredEquipments = equipments.filter(e =>
     `${e.brand} ${e.model} ${e.type} ${e.title}`.toLowerCase().includes(eqSearch.toLowerCase())
   );
+
+  // As fotos não vêm na lista (são pesadas). Só baixa as miniaturas dos resultados da busca.
+  useEffect(() => {
+    if (!eqSearch) return;
+    const ids = filteredEquipments.filter(e => !e.imageUrl).slice(0, 8).map(e => e.id);
+    if (ids.length === 0) return;
+    storage.loadEquipmentImages(ids, (imgId, imageUrl) => {
+      setEquipments(prev => prev.map(e => (e.id === imgId ? { ...e, imageUrl } : e)));
+    });
+  }, [eqSearch, equipments.length]);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center font-black text-blue-600">CARREGANDO...</div>
@@ -278,6 +304,18 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
                     className="bg-blue-600 text-white px-3 py-2 rounded-lg font-black text-[10px]">+ ITEM</button>
                 </div>
               </div>
+
+              {eqError && (
+                <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs font-bold">
+                    <AlertCircle size={16} />
+                    <span>Não foi possível carregar os equipamentos do banco de dados.</span>
+                  </div>
+                  <button onClick={retryEquipments} className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest px-3 py-2 rounded-lg transition">
+                    <RefreshCw size={12} /> Tentar novamente
+                  </button>
+                </div>
+              )}
 
               {/* Busca de equipamentos */}
               <div className="relative">
