@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Printer, Plus, Edit, Save, X, Trash2, Camera, Lock } from 'lucide-react';
+import { Printer, Plus, Edit, Save, X, Trash2, Camera, Lock, AlertCircle, RefreshCw } from 'lucide-react';
 import { storage } from '../services/storage';
 import { Equipment, User, UserRole } from '../types';
 
@@ -8,13 +8,29 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentEq, setCurrentEq] = useState<Partial<Equipment>>({});
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const isAdmin = user.role === UserRole.ADMIN;
 
+  // Carrega a lista SEM as fotos (rápido) e depois baixa as fotos aos poucos em segundo plano.
   const loadData = async () => {
     setLoading(true);
-    setEquipments(await storage.getEquipments());
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const list = await storage.getEquipments();
+      setEquipments(list);
+      setLoading(false);
+      const pending = list.filter(e => !e.imageUrl).map(e => e.id);
+      storage.loadEquipmentImages(pending, (id, imageUrl) => {
+        setEquipments(prev => prev.map(e => (e.id === id ? { ...e, imageUrl } : e)));
+      });
+    } catch (err: any) {
+      console.error('Erro ao carregar equipamentos:', err);
+      setLoadError(err?.message || 'Falha ao carregar equipamentos.');
+      setEquipments([]);
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
@@ -29,9 +45,15 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
     setIsEditing(true);
   };
 
-  const handleEdit = (eq: Equipment) => {
+  const handleEdit = async (eq: Equipment) => {
     if (!isAdmin) { alert('Apenas administradores podem editar equipamentos.'); return; }
-    setCurrentEq(eq);
+    // Garante que a foto está carregada antes de abrir o modal de edição
+    let imageUrl = eq.imageUrl;
+    if (!imageUrl) {
+      const imgs = await storage.getEquipmentImages([eq.id]);
+      imageUrl = imgs[eq.id] || '';
+    }
+    setCurrentEq({ ...eq, imageUrl });
     setIsEditing(true);
   };
 
@@ -52,10 +74,19 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
       return;
     }
     const isNew = !equipments.find(e => e.id === currentEq.id);
-    await storage.saveEquipment(currentEq as Equipment);
+    setSaving(true);
+    try {
+      await storage.saveEquipment(currentEq as Equipment);
+    } catch (err: any) {
+      console.error('Erro ao salvar equipamento:', err);
+      alert('Erro ao salvar o equipamento: ' + (err?.message || 'tente novamente.'));
+      setSaving(false);
+      return;
+    }
     storage.addLog({ id: crypto.randomUUID(), timestamp: new Date().toISOString(), userId: user.id, userName: user.name, module: 'equipamento', action: isNew ? 'criar' : 'editar', recordId: currentEq.id!, description: `${isNew ? 'Cadastrou' : 'Editou'} equipamento ${currentEq.brand} ${currentEq.model}` });
-    await loadData();
+    setSaving(false);
     setIsEditing(false);
+    await loadData();
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,7 +98,26 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCurrentEq({ ...currentEq, imageUrl: reader.result as string });
+        // Redimensiona (máx. 900px) e comprime em JPEG: a foto fica ~50–150 KB em vez de MBs.
+        // Fotos gigantes no banco são o que fazia a lista de equipamentos dar timeout.
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 900;
+          const ratio = Math.min(1, MAX / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * ratio));
+          const h = Math.max(1, Math.round(img.height * ratio));
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { setCurrentEq({ ...currentEq, imageUrl: reader.result as string }); return; }
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          setCurrentEq({ ...currentEq, imageUrl: canvas.toDataURL('image/jpeg', 0.85) });
+        };
+        img.onerror = () => alert('Não foi possível ler essa imagem.');
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -104,7 +154,19 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
         )}
       </div>
 
-      {equipments.length === 0 && (
+      {loadError && (
+        <div className="flex items-center justify-between gap-4 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl">
+          <div className="flex items-center gap-3 text-sm font-bold">
+            <AlertCircle size={18} />
+            <span>Não foi possível carregar os equipamentos do banco de dados. ({loadError})</span>
+          </div>
+          <button onClick={loadData} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl transition">
+            <RefreshCw size={14} /> Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {!loadError && equipments.length === 0 && (
         <div className="text-center py-20 text-slate-300">
           <Printer className="mx-auto mb-4 opacity-20" size={56} />
           <p className="text-sm font-medium">Nenhum equipamento cadastrado ainda.</p>
@@ -214,8 +276,8 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
             </div>
             <div className="p-8 bg-slate-50 flex justify-end gap-4 border-t border-slate-100">
               <button onClick={() => setIsEditing(false)} className="px-8 py-3 font-black text-slate-400 hover:text-slate-800 transition uppercase text-xs tracking-widest">Cancelar</button>
-              <button onClick={handleSave} className="bg-blue-600 text-white px-10 py-3 rounded-2xl font-black hover:bg-blue-700 transition flex items-center gap-3 shadow-xl shadow-blue-200 uppercase text-xs tracking-widest">
-                <Save size={20} /> Efetivar Cadastro
+              <button onClick={handleSave} disabled={saving} className="bg-blue-600 text-white px-10 py-3 rounded-2xl font-black hover:bg-blue-700 transition flex items-center gap-3 shadow-xl shadow-blue-200 uppercase text-xs tracking-widest disabled:opacity-60">
+                <Save size={20} /> {saving ? 'Salvando...' : 'Efetivar Cadastro'}
               </button>
             </div>
           </div>
