@@ -31,7 +31,10 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
       const [props, custs, eqs, users, md] = await Promise.all([
         storage.getVisibleProposals(user),
         storage.getVisibleCustomers(user),
-        storage.getEquipments(),
+        storage.getEquipments().catch((err: any) => {
+          console.error('Erro ao carregar equipamentos:', err);
+          return [] as Equipment[];
+        }),
         storage.getUsers(),
         storage.getMasterData(),
       ]);
@@ -94,6 +97,14 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
 
   const generatePDF = async (prop: Proposal) => {
     setGenerating(prop.id);
+    // A lista de equipamentos vem sem foto (pesada). Busca só as fotos dos itens desta proposta.
+    try {
+      const ids = prop.items.filter(i => !i.isExtra).map(i => i.equipmentId);
+      const imgs = await storage.getEquipmentImages(ids);
+      setEquipments(prev => prev.map(e => (imgs[e.id] ? { ...e, imageUrl: imgs[e.id] } : e)));
+    } catch (err) {
+      console.error('Erro ao carregar fotos dos equipamentos:', err);
+    }
     setActiveProp(prop);
     setTimeout(async () => {
       if (!pdfRef.current) return;
