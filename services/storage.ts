@@ -139,6 +139,20 @@ export const storage = {
       .from('propostas').select('*').order('createdAt', { ascending: false });
     return handleResponse(data, error, []);
   },
+  // Próximo código sequencial: ANO + sequência de 3 dígitos (ex.: 2026057).
+  // Usa o MAIOR número já existente no ano (e não a contagem), então nunca repete
+  // código mesmo que alguma proposta tenha sido excluída ou o vendedor só enxergue as dele.
+  getNextProposalCode: async (): Promise<string> => {
+    const year = new Date().getFullYear();
+    const { data, error } = await supabase.from('propostas').select('code');
+    if (error) throw error;
+    let max = 0;
+    ((data as any[]) || []).forEach(row => {
+      const m = /^(\d{4})(\d+)$/.exec(String(row.code || '').trim());
+      if (m && Number(m[1]) === year) max = Math.max(max, Number(m[2]));
+    });
+    return `${year}${String(max + 1).padStart(3, '0')}`;
+  },
   saveProposal: async (prop: Proposal) => {
     const { error } = await supabase.from('propostas').upsert(prop);
     if (error) throw error;
