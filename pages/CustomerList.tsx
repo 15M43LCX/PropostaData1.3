@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Plus, Edit, Phone, Mail, MapPin, X, Save, Trash2, User as UserIcon } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Users, Plus, Edit, Phone, Mail, MapPin, X, Save, Trash2, User as UserIcon, Search } from 'lucide-react';
 import { storage } from '../services/storage';
 import { User, Customer, UserRole } from '../types';
 
@@ -8,6 +8,8 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState<Partial<Customer>>({});
+  const [search, setSearch] = useState('');
+  const [stateFilter, setStateFilter] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -16,6 +18,28 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   useEffect(() => { loadData(); }, [user]);
+
+  // Remove acentos e ignora maiúsculas/minúsculas para a busca
+  const normalize = (v?: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+  // UFs existentes na carteira (para o filtro por estado)
+  const availableStates = useMemo(
+    () => Array.from(new Set(customers.map(c => (c.state || '').trim().toUpperCase()).filter(Boolean))).sort(),
+    [customers]
+  );
+
+  // Filtra e ordena em ordem alfabética pela Razão Social (A → Z, pt-BR, sem diferenciar acento/maiúscula)
+  const visibleCustomers = useMemo(() => {
+    const q = normalize(search);
+    return customers
+      .filter(c => {
+        if (stateFilter && (c.state || '').trim().toUpperCase() !== stateFilter) return false;
+        if (!q) return true;
+        return [c.companyName, c.tradeName, c.contactName, c.phone, c.email, c.city, c.state, c.neighborhood]
+          .some(field => normalize(field).includes(q));
+      })
+      .sort((a, b) => (a.companyName || '').localeCompare(b.companyName || '', 'pt-BR', { sensitivity: 'base' }));
+  }, [customers, search, stateFilter]);
 
   const handleNew = () => {
     setCurrentCustomer({
@@ -84,6 +108,34 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
         </button>
       </div>
 
+      <div className="flex flex-col md:flex-row gap-3 md:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            className="w-full pl-12 pr-10 py-3.5 bg-white border border-slate-100 rounded-2xl font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            placeholder="Filtrar por razão social, fantasia, contato, cidade, telefone ou e-mail..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600" title="Limpar busca">
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <select
+          value={stateFilter}
+          onChange={e => setStateFilter(e.target.value)}
+          className="px-4 py-3.5 bg-white border border-slate-100 rounded-2xl font-bold text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+        >
+          <option value="">Todos os estados</option>
+          {availableStates.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+        </select>
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+          {visibleCustomers.length} de {customers.length} cliente(s)
+        </span>
+      </div>
+
       {customers.length === 0 && (
         <div className="text-center py-20 text-slate-300">
           <Users className="mx-auto mb-4 opacity-20" size={56} />
@@ -91,8 +143,15 @@ const CustomerList: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
 
+      {customers.length > 0 && visibleCustomers.length === 0 && (
+        <div className="text-center py-16 text-slate-300">
+          <Search className="mx-auto mb-4 opacity-20" size={48} />
+          <p className="text-sm font-medium">Nenhum cliente encontrado para esse filtro.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {customers.map(c => (
+        {visibleCustomers.map(c => (
           <div key={c.id} className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 hover:shadow-md transition group relative overflow-hidden">
             <div className="flex justify-between items-start mb-6">
               <div className="w-14 h-14 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-black text-xl shadow-inner uppercase">
