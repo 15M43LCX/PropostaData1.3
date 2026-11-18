@@ -83,10 +83,17 @@ const ProposalList: React.FC<{ user: User }> = ({ user }) => {
   };
 
   const handleDuplicate = async (prop: Proposal) => {
+    let newCode: string;
+    try {
+      newCode = await storage.getNextProposalCode();
+    } catch (err: any) {
+      alert('Não foi possível gerar o novo código da proposta: ' + (err?.message || 'tente novamente.'));
+      return;
+    }
     const newProp: Proposal = {
       ...prop,
       id: Math.random().toString(36).substr(2, 9),
-      code: `${prop.code}-COPIA`,
+      code: newCode,
       date: new Date().toLocaleDateString('pt-BR'),
       status: ProposalStatus.ABERTO
     };
