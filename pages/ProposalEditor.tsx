@@ -79,11 +79,13 @@ const ProposalEditor: React.FC<{ user: User }> = ({ user }) => {
         const existing = proposals.find(p => p.id === id);
         if (existing) setFormData({ ...existing, selectedConditions: existing.selectedConditions || [], franchiseMode: existing.franchiseMode || 'individual', globalMonoFranchise: existing.globalMonoFranchise || 0, globalMonoExcess: existing.globalMonoExcess || 0, globalColorFranchise: existing.globalColorFranchise || 0, globalColorExcess: existing.globalColorExcess || 0, proposalMonthlyValue: existing.proposalMonthlyValue || 0, proposalMonoFranchise: existing.proposalMonoFranchise || 0, proposalMonoExcess: existing.proposalMonoExcess || 0, proposalMonoClickPrice: existing.proposalMonoClickPrice || 0, proposalColorFranchise: existing.proposalColorFranchise || 0, proposalColorExcess: existing.proposalColorExcess || 0, proposalColorClickPrice: existing.proposalColorClickPrice || 0 });
       } else {
-        const year = new Date().getFullYear();
-        const sequence = (proposals.length + 1).toString().padStart(3, '0');
+        const nextCode = await storage.getNextProposalCode().catch(() => {
+          const year = new Date().getFullYear();
+          return `${year}${(proposals.length + 1).toString().padStart(3, '0')}`;
+        });
         setFormData(prev => ({
           ...prev,
-          code: `${year}${sequence}`,
+          code: nextCode,
           paymentMethod: md.paymentMethods[0] || '',
           validity: md.validities[0] || '',
           deliveryTime: md.deliveryTimes[0] || '',
