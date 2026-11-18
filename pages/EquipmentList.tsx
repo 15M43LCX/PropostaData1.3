@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Printer, Plus, Edit, Save, X, Trash2, Camera, Lock, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Printer, Plus, Edit, Save, X, Trash2, Camera, Lock, AlertCircle, RefreshCw, Search } from 'lucide-react';
 import { storage } from '../services/storage';
 import { Equipment, User, UserRole } from '../types';
 
@@ -10,8 +10,38 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
   const [currentEq, setCurrentEq] = useState<Partial<Equipment>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
+  const [colorFilter, setColorFilter] = useState<'' | 'color' | 'mono'>('');
 
   const isAdmin = user.role === UserRole.ADMIN;
+
+  // Remove acentos e ignora maiúsculas/minúsculas para a busca
+  const normalize = (v?: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+  // Marcas existentes no catálogo (para o filtro por marca), em ordem alfabética
+  const availableBrands = useMemo(
+    () => Array.from(new Set(equipments.map(e => (e.brand || '').trim()).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })),
+    [equipments]
+  );
+
+  // Filtra e ordena em ordem alfabética: Marca (A→Z) e, dentro da marca, Modelo (A→Z)
+  const visibleEquipments = useMemo(() => {
+    const q = normalize(search);
+    return equipments
+      .filter(e => {
+        if (brandFilter && (e.brand || '').trim() !== brandFilter) return false;
+        if (colorFilter === 'color' && !e.isColor) return false;
+        if (colorFilter === 'mono' && e.isColor) return false;
+        if (!q) return true;
+        return [e.brand, e.model, e.title, e.type].some(f => normalize(f).includes(q));
+      })
+      .sort((a, b) =>
+        (a.brand || '').localeCompare(b.brand || '', 'pt-BR', { sensitivity: 'base' }) ||
+        (a.model || '').localeCompare(b.model || '', 'pt-BR', { sensitivity: 'base', numeric: true })
+      );
+  }, [equipments, search, brandFilter, colorFilter]);
 
   // Carrega a lista SEM as fotos (rápido) e depois baixa as fotos aos poucos em segundo plano.
   const loadData = async () => {
@@ -166,6 +196,52 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
         </div>
       )}
 
+      {equipments.length > 0 && (
+        <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              className="w-full pl-12 pr-10 py-3.5 bg-white border border-slate-100 rounded-2xl font-medium text-sm outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              placeholder="Filtrar por marca, modelo ou título comercial..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600" title="Limpar busca">
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <select
+            value={brandFilter}
+            onChange={e => setBrandFilter(e.target.value)}
+            className="px-4 py-3.5 bg-white border border-slate-100 rounded-2xl font-bold text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          >
+            <option value="">Todas as marcas</option>
+            {availableBrands.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <select
+            value={colorFilter}
+            onChange={e => setColorFilter(e.target.value as '' | 'color' | 'mono')}
+            className="px-4 py-3.5 bg-white border border-slate-100 rounded-2xl font-bold text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          >
+            <option value="">Color e Mono</option>
+            <option value="color">Somente Color</option>
+            <option value="mono">Somente Mono</option>
+          </select>
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">
+            {visibleEquipments.length} de {equipments.length} equipamento(s)
+          </span>
+        </div>
+      )}
+
+      {equipments.length > 0 && visibleEquipments.length === 0 && (
+        <div className="text-center py-16 text-slate-300">
+          <Search className="mx-auto mb-4 opacity-20" size={48} />
+          <p className="text-sm font-medium">Nenhum equipamento encontrado para esse filtro.</p>
+        </div>
+      )}
+
       {!loadError && equipments.length === 0 && (
         <div className="text-center py-20 text-slate-300">
           <Printer className="mx-auto mb-4 opacity-20" size={56} />
@@ -174,7 +250,7 @@ const EquipmentList: React.FC<{ user: User }> = ({ user }) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        {equipments.map(eq => (
+        {visibleEquipments.map(eq => (
           <div key={eq.id} className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden group hover:border-blue-200 transition-all">
             <div className="aspect-square bg-slate-50 relative overflow-hidden flex items-center justify-center p-8">
               {eq.imageUrl ? (
